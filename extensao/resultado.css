@@ -1,0 +1,158 @@
+:root {
+  --fundo: #f3f4f6;
+  --cartao: #ffffff;
+  --texto: #1f2937;
+  --suave: #6b7280;
+  --borda: #d1d5db;
+  --destaque: #2563eb;
+  --destaque-texto: #ffffff;
+  --aviso-fundo: #fef3c7;
+  --aviso-texto: #92400e;
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --fundo: #18191c;
+    --cartao: #24262a;
+    --texto: #e5e7eb;
+    --suave: #9ca3af;
+    --borda: #3f4147;
+    --destaque: #3b82f6;
+    --aviso-fundo: #422006;
+    --aviso-texto: #fcd34d;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font: 14px/1.5 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  background: var(--fundo);
+  color: var(--texto);
+}
+
+.topo {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px clamp(16px, 4vw, 40px);
+  background: var(--cartao);
+  border-bottom: 1px solid var(--borda);
+}
+
+.titulo {
+  min-width: 0;
+}
+
+h1 {
+  margin: 0;
+  font-size: 20px;
+  overflow-wrap: anywhere;
+}
+
+#detalhes {
+  margin: 2px 0 0;
+  color: var(--suave);
+  overflow-wrap: anywhere;
+}
+
+#detalhes a {
+  color: inherit;
+}
+
+.acoes {
+  display: flex;
+  gap: 8px;
+}
+
+button {
+  font: inherit;
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: 1px solid var(--borda);
+  background: var(--cartao);
+  color: inherit;
+  cursor: pointer;
+}
+
+button.primario {
+  background: var(--destaque);
+  border-color: var(--destaque);
+  color: var(--destaque-texto);
+  font-weight: 600;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--destaque);
+  outline-offset: 2px;
+}
+
+.aviso,
+.estado {
+  margin: 16px clamp(16px, 4vw, 40px) 0;
+}
+
+.aviso {
+  padding: 10px 14px;
+  border-radius: 6px;
+  background: var(--aviso-fundo);
+  color: var(--aviso-texto);
+}
+
+.estado {
+  color: var(--suave);
+}
+
+.estado:empty {
+  display: none;
+}
+
+.grade {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
+  padding: 16px clamp(16px, 4vw, 40px) 40px;
+}
+
+figure {
+  margin: 0;
+  background: var(--cartao);
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+figure a {
+  display: block;
+  background: var(--fundo);
+}
+
+figure img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+  object-position: top;
+}
+
+figcaption {
+  padding: 6px 10px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}

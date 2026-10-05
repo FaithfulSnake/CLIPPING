@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Prints com Rolagem</title>
+<!-- ARQUIVO GERADO por ferramentas/gerar-script.mjs: não edite à mão. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,600&display=swap" />
+<style>
+/* Layout: uma coluna de leitura (~46rem); o botão arrastável fica em destaque logo no primeiro passo. */
+:root {
+  --fundo: #f4f6f8;
+  --superficie: #ffffff;
+  --texto: #18212b;
+  --suave: #566170;
+  --linha: #d9dfe6;
+  --acento: #1f4fd1;
+  --sobre-acento: #ffffff;
+  --acento-suave: #e2e9fb;
+  --quadro: rgba(31, 79, 209, 0.12);
+  --serifa: 'Source Serif 4', Georgia, 'Times New Roman', serif;
+  --sans: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --fundo: #11151a;
+    --superficie: #191e25;
+    --texto: #e5e9ef;
+    --suave: #9aa5b3;
+    --linha: #2b323c;
+    --acento: #7ea2ff;
+    --sobre-acento: #0d1530;
+    --acento-suave: #1d2a4d;
+    --quadro: rgba(126, 162, 255, 0.16);
+    color-scheme: dark;
+  }
+}
+:root[data-theme='dark'] {
+  --fundo: #11151a;
+  --superficie: #191e25;
+  --texto: #e5e9ef;
+  --suave: #9aa5b3;
+  --linha: #2b323c;
+  --acento: #7ea2ff;
+  --sobre-acento: #0d1530;
+  --acento-suave: #1d2a4d;
+  --quadro: rgba(126, 162, 255, 0.16);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  padding-inline: 16px;
+  background: var(--fundo);
+  color: var(--texto);
+  font: 16px/1.6 var(--sans);
+}
+.pagina { max-width: 46rem; margin: 0 auto; padding-block: 40px 64px; display: grid; gap: 40px; }
+h1, h2 { font-family: var(--serifa); font-weight: 600; text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(1.9rem, 5vw, 2.4rem); line-height: 1.15; }
+h2 { font-size: 1.35rem; line-height: 1.3; margin-bottom: 14px; }
+p { margin: 0; }
+.abertura { display: grid; gap: 10px; }
+.abertura p { color: var(--suave); max-width: 62ch; }
+.rotulo { font: 500 0.75rem/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--acento); }
+.cartao { background: var(--superficie); border: 1px solid var(--linha); border-radius: 12px; padding: clamp(18px, 4vw, 28px); }
+ol.passos { counter-reset: passo; list-style: none; margin: 0; padding: 0; display: grid; gap: 18px; }
+ol.passos > li { counter-increment: passo; display: grid; grid-template-columns: 2rem minmax(0, 1fr); gap: 12px; align-items: start; }
+ol.passos > li::before {
+  content: counter(passo);
+  width: 2rem; height: 2rem; border-radius: 50%;
+  display: grid; place-items: center;
+  font: 500 0.85rem var(--mono);
+  background: var(--acento-suave); color: var(--acento);
+}
+ol.passos > li > div { display: grid; gap: 10px; min-width: 0; }
+.favorito {
+  justify-self: start;
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 9px 16px 9px 12px; border-radius: 999px;
+  background: var(--acento); color: var(--sobre-acento);
+  font-weight: 600; text-decoration: none; cursor: grab;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+.favorito:active { cursor: grabbing; }
+.favorito svg { width: 20px; height: 20px; flex: none; }
+.secundario { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
+button {
+  font: inherit; font-weight: 500;
+  padding: 7px 14px; border-radius: 8px;
+  border: 1px solid var(--linha); background: var(--superficie); color: var(--texto);
+  cursor: pointer;
+}
+button:hover { border-color: var(--acento); }
+a:focus-visible, button:focus-visible, textarea:focus-visible { outline: 2px solid var(--acento); outline-offset: 2px; }
+.nota { color: var(--suave); font-size: 0.92rem; }
+.nota:empty { display: none; }
+textarea {
+  width: 100%; height: 6.5rem; resize: vertical;
+  font: 0.75rem/1.4 var(--mono); color: var(--texto);
+  background: var(--fundo); border: 1px solid var(--linha); border-radius: 8px; padding: 8px;
+}
+kbd {
+  font: 500 0.8rem var(--mono);
+  padding: 1px 6px; border-radius: 5px;
+  border: 1px solid var(--linha); border-bottom-width: 2px; background: var(--superficie);
+}
+.duas { display: grid; grid-template-columns: minmax(0, 1fr) 13rem; gap: 28px; align-items: center; }
+@media (max-width: 620px) { .duas { grid-template-columns: minmax(0, 1fr); } }
+.texto-zip { display: grid; gap: 14px; min-width: 0; }
+.duas ul { margin: 0; padding-left: 1.2rem; display: grid; gap: 8px; }
+.esquema { margin: 0; display: grid; gap: 8px; justify-items: center; }
+.folha {
+  position: relative; width: 9.5rem; height: 19rem; max-width: 100%;
+  background: var(--superficie); border: 1px solid var(--linha); border-radius: 4px;
+  background-image: repeating-linear-gradient(to bottom, transparent 0 11px, var(--linha) 11px 14px);
+  background-clip: content-box; padding: 10px 14px;
+}
+.recorte {
+  position: absolute; left: -10px; right: -10px; height: 7.6rem;
+  border: 2px solid var(--acento); border-radius: 4px; background: var(--quadro);
+}
+.recorte span {
+  position: absolute; right: 6px; top: 4px;
+  font: 500 0.7rem var(--mono); color: var(--acento);
+}
+.esquema figcaption { font-size: 0.85rem; color: var(--suave); text-align: center; max-width: 13rem; }
+pre.zip {
+  margin: 0; overflow-x: auto;
+  font: 0.9rem/1.7 var(--mono);
+  background: var(--superficie); border: 1px solid var(--linha); border-radius: 8px; padding: 14px 16px;
+}
+.lista { margin: 0; padding-left: 1.2rem; display: grid; gap: 8px; }
+code { font: 0.9em var(--mono); }
+</style>
+</head>
+<body>
+<main class="pagina">
+  <header class="abertura">
+    <span class="rotulo">Sem instalar nada</span>
+    <h1>Prints com rolagem</h1>
+    <p>Um favorito do navegador que rola a página do topo ao fim, tira um print de cada trecho e baixa um ZIP com os prints numerados na ordem, prontos para a transcrição.</p>
+  </header>
+
+  <section class="cartao" aria-labelledby="t-criar">
+    <h2 id="t-criar">Criar o favorito (só uma vez)</h2>
+    <ol class="passos">
+      <li><div><p>No Chrome ou no Edge, mostre a barra de favoritos com <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>B</kbd>.</p></div></li>
+      <li>
+        <div>
+          <p>Arraste este botão até a barra de favoritos:</p>
+          <a id="favorito" class="favorito" href="javascript:(()%20%3D%3E%20%7B%0A'use%20strict'%3B%0A(()%20%3D%3E%20%7B%0Aif%20(globalThis.__clippingPrints)%20return%3B%0Aconst%20AREA_MINIMA%20%3D%200.15%3B%0Aconst%20FAIXA_BORDA%20%3D%200.25%3B%0Aconst%20COBERTURA_MAXIMA%20%3D%200.6%3B%0Alet%20estado%20%3D%20null%3B%0Afunction*%20elementos(raiz)%20%7B%0Aconst%20pilha%20%3D%20%5Braiz%5D%3B%0Awhile%20(pilha.length)%20%7B%0Afor%20(const%20el%20of%20pilha.pop().querySelectorAll('*'))%20%7B%0Ayield%20el%3B%0Aif%20(el.shadowRoot)%20pilha.push(el.shadowRoot)%3B%0A%7D%0A%7D%0A%7D%0Afunction%20ehAncestral(a%2C%20b)%20%7B%0Afor%20(let%20n%20%3D%20b%3B%20n%3B%20n%20%3D%20n.parentNode%20%7C%7C%20n.host)%20if%20(n%20%3D%3D%3D%20a)%20return%20true%3B%0Areturn%20false%3B%0A%7D%0Afunction%20areaVisivel(r%2C%20win)%20%7B%0Aconst%20w%20%3D%20Math.min(r.right%2C%20win.innerWidth)%20-%20Math.max(r.left%2C%200)%3B%0Aconst%20h%20%3D%20Math.min(r.bottom%2C%20win.innerHeight)%20-%20Math.max(r.top%2C%200)%3B%0Areturn%20w%20%3E%200%20%26%26%20h%20%3E%200%20%3F%20w%20*%20h%20%3A%200%3B%0A%7D%0Afunction%20rolarJanelaPara(win%2C%20y)%20%7B%0Awin.scrollTo(%7B%20top%3A%20y%2C%20left%3A%20win.scrollX%2C%20behavior%3A%20'instant'%20%7D)%3B%0A%7D%0Afunction%20rolagemJanela(win)%20%7B%0Aconst%20doc%20%3D%20win.document%3B%0Aconst%20raiz%20%3D%20()%20%3D%3E%20doc.scrollingElement%20%7C%7C%20doc.documentElement%3B%0Areturn%20%7B%0Atipo%3A%20win%20%3D%3D%3D%20window%20%3F%20'janela'%20%3A%20'quadro'%2C%0Awin%2C%0Adoc%2C%0Ael%3A%20null%2C%0Atopo%3A%20()%20%3D%3E%20win.scrollY%2C%0Arolar%3A%20(y)%20%3D%3E%20rolarJanelaPara(win%2C%20y)%2C%0Amaximo%3A%20()%20%3D%3E%20Math.max(0%2C%20raiz().scrollHeight%20-%20raiz().clientHeight)%2C%0Aregiao%3A%20()%20%3D%3E%20(%7B%20top%3A%200%2C%20left%3A%200%2C%20bottom%3A%20raiz().clientHeight%2C%20right%3A%20raiz().clientWidth%20%7D)%2C%0AalvosEstilo%3A%20%5Bdoc.documentElement%2C%20doc.body%5D.filter(Boolean)%2C%0A%7D%3B%0A%7D%0Afunction%20rolagemElemento(el)%20%7B%0Aconst%20win%20%3D%20el.ownerDocument.defaultView%3B%0Areturn%20%7B%0Atipo%3A%20'elemento'%2C%0Awin%2C%0Adoc%3A%20el.ownerDocument%2C%0Ael%2C%0Atopo%3A%20()%20%3D%3E%20el.scrollTop%2C%0Arolar%3A%20(y)%20%3D%3E%20el.scrollTo(%7B%20top%3A%20y%2C%20left%3A%20el.scrollLeft%2C%20behavior%3A%20'instant'%20%7D)%2C%0Amaximo%3A%20()%20%3D%3E%20Math.max(0%2C%20el.scrollHeight%20-%20el.clientHeight)%2C%0Aregiao%3A%20()%20%3D%3E%20%7B%0Aconst%20r%20%3D%20el.getBoundingClientRect()%3B%0Aconst%20top%20%3D%20r.top%20%2B%20el.clientTop%3B%0Aconst%20left%20%3D%20r.left%20%2B%20el.clientLeft%3B%0Areturn%20%7B%0Atop%3A%20Math.max(0%2C%20top)%2C%0Aleft%3A%20Math.max(0%2C%20left)%2C%0Abottom%3A%20Math.min(win.innerHeight%2C%20top%20%2B%20el.clientHeight)%2C%0Aright%3A%20Math.min(win.innerWidth%2C%20left%20%2B%20el.clientWidth)%2C%0A%7D%3B%0A%7D%2C%0AalvosEstilo%3A%20%5Bel%5D%2C%0A%7D%3B%0A%7D%0Afunction%20alcanceJanela(win)%20%7B%0Aconst%20raiz%20%3D%20win.document.scrollingElement%20%7C%7C%20win.document.documentElement%3B%0Aif%20(!raiz)%20return%200%3B%0Aconst%20alcance%20%3D%20raiz.scrollHeight%20-%20raiz.clientHeight%3B%0Aif%20(alcance%20%3C%201)%20return%200%3B%0Aconst%20y%20%3D%20win.scrollY%3B%0Aif%20(y%20%3E%200)%20return%20alcance%3B%0ArolarJanelaPara(win%2C%201)%3B%0Aconst%20rolou%20%3D%20win.scrollY%20%3E%200%3B%0ArolarJanelaPara(win%2C%20y)%3B%0Areturn%20rolou%20%3F%20alcance%20%3A%200%3B%0A%7D%0Afunction%20acharRolagem()%20%7B%0Aif%20(alcanceJanela(window)%20%3E%20innerHeight%20*%200.25)%20return%20rolagemJanela(window)%3B%0Alet%20melhor%20%3D%20null%3B%0Alet%20melhorArea%20%3D%200%3B%0Aconst%20considerar%20%3D%20(r%2C%20area)%20%3D%3E%20%7B%0Aif%20(area%20%3E%20melhorArea)%20%7B%0Amelhor%20%3D%20r%3B%0AmelhorArea%20%3D%20area%3B%0A%7D%0A%7D%3B%0A(function%20varrer(doc%2C%20nivel)%20%7B%0Aconst%20win%20%3D%20doc.defaultView%3B%0Afor%20(const%20el%20of%20elementos(doc))%20%7B%0Aif%20(el.tagName%20%3D%3D%3D%20'IFRAME'%20%7C%7C%20el.tagName%20%3D%3D%3D%20'FRAME')%20%7B%0Alet%20interno%20%3D%20null%3B%0Atry%20%7B%0Ainterno%20%3D%20el.contentDocument%3B%0A%7D%20catch%20%7B%0A%7D%0Aif%20(!interno%3F.documentElement%20%7C%7C%20nivel%20%3E%3D%203)%20continue%3B%0Aconst%20area%20%3D%20areaVisivel(el.getBoundingClientRect()%2C%20win)%3B%0Aif%20(!area)%20continue%3B%0Aif%20(alcanceJanela(interno.defaultView)%20%3E%2020)%20considerar(rolagemJanela(interno.defaultView)%2C%20area)%3B%0Avarrer(interno%2C%20nivel%20%2B%201)%3B%0A%7D%20else%20if%20(el.scrollHeight%20-%20el.clientHeight%20%3E%2020)%20%7B%0Aconst%20oy%20%3D%20win.getComputedStyle(el).overflowY%3B%0Aif%20(oy%20%3D%3D%3D%20'auto'%20%7C%7C%20oy%20%3D%3D%3D%20'scroll'%20%7C%7C%20oy%20%3D%3D%3D%20'overlay')%20%7B%0Aconsiderar(rolagemElemento(el)%2C%20areaVisivel(el.getBoundingClientRect()%2C%20win))%3B%0A%7D%0A%7D%0A%7D%0A%7D)(document%2C%200)%3B%0Aif%20(melhor%20%26%26%20melhorArea%20%3E%3D%20innerWidth%20*%20innerHeight%20*%20AREA_MINIMA)%20return%20melhor%3B%0Areturn%20rolagemJanela(window)%3B%0A%7D%0Afunction%20faixas(sc)%20%7B%0Aconst%20reg%20%3D%20sc.regiao()%3B%0Aconst%20h%20%3D%20reg.bottom%20-%20reg.top%3B%0Aconst%20lista%20%3D%20%5B%5D%3B%0Aif%20(h%20%3C%3D%200)%20return%20%7B%20reg%2C%20h%2C%20lista%20%7D%3B%0Afor%20(const%20el%20of%20elementos(sc.doc))%20%7B%0Aconst%20cs%20%3D%20sc.win.getComputedStyle(el)%3B%0Aif%20(cs.position%20!%3D%3D%20'fixed'%20%26%26%20cs.position%20!%3D%3D%20'sticky')%20continue%3B%0Aif%20(cs.display%20%3D%3D%3D%20'none'%20%7C%7C%20cs.visibility%20!%3D%3D%20'visible'%20%7C%7C%20parseFloat(cs.opacity)%20%3D%3D%3D%200)%20continue%3B%0Aif%20(sc.el%20%26%26%20ehAncestral(el%2C%20sc.el))%20continue%3B%0Aconst%20r%20%3D%20el.getBoundingClientRect()%3B%0Aif%20(r.right%20%3C%3D%20reg.left%20%7C%7C%20r.left%20%3E%3D%20reg.right)%20continue%3B%0Aconst%20t%20%3D%20Math.max(r.top%2C%20reg.top)%3B%0Aconst%20b%20%3D%20Math.min(r.bottom%2C%20reg.bottom)%3B%0Aif%20(b%20-%20t%20%3C%201%20%7C%7C%20b%20-%20t%20%3E%20h%20%2F%202)%20continue%3B%0Alet%20lado%3B%0Aif%20(t%20-%20reg.top%20%3C%3D%20h%20*%20FAIXA_BORDA%20%26%26%20t%20-%20reg.top%20%3C%3D%20reg.bottom%20-%20b)%20lado%20%3D%20'topo'%3B%0Aelse%20if%20(reg.bottom%20-%20b%20%3C%3D%20h%20*%20FAIXA_BORDA)%20lado%20%3D%20'base'%3B%0Aelse%20continue%3B%0Alet%20presa%20%3D%20cs.position%20%3D%3D%3D%20'fixed'%3B%0Aif%20(!presa)%20%7B%0Aconst%20deslocamento%20%3D%20parseFloat(lado%20%3D%3D%3D%20'topo'%20%3F%20cs.top%20%3A%20cs.bottom)%3B%0Aconst%20distancia%20%3D%20lado%20%3D%3D%3D%20'topo'%20%3F%20r.top%20-%20(reg.top%20%2B%20deslocamento)%20%3A%20reg.bottom%20-%20deslocamento%20-%20r.bottom%3B%0Apresa%20%3D%20Number.isFinite(deslocamento)%20%26%26%20Math.abs(distancia)%20%3C%202%3B%0A%7D%0Alista.push(%7B%20el%2C%20lado%2C%20t%2C%20b%2C%20presa%20%7D)%3B%0A%7D%0Areturn%20%7B%20reg%2C%20h%2C%20lista%20%7D%3B%0A%7D%0Afunction%20definirEstilo(el%2C%20prop%2C%20valor)%20%7B%0Alet%20salvos%20%3D%20estado.estilos.get(el)%3B%0Aif%20(!salvos)%20estado.estilos.set(el%2C%20(salvos%20%3D%20new%20Map()))%3B%0Aif%20(!salvos.has(prop))%20salvos.set(prop%2C%20%5Bel.style.getPropertyValue(prop)%2C%20el.style.getPropertyPriority(prop)%5D)%3B%0Ael.style.setProperty(prop%2C%20valor%2C%20'important')%3B%0A%7D%0Afunction%20restaurarEstilos()%20%7B%0Aconst%20restaurar%20%3D%20(el%2C%20prop%2C%20%5Bvalor%2C%20prioridade%5D)%20%3D%3E%20%7B%0Aif%20(valor)%20el.style.setProperty(prop%2C%20valor%2C%20prioridade)%3B%0Aelse%20el.style.removeProperty(prop)%3B%0A%7D%3B%0Afor%20(const%20%5Bel%2C%20salvos%5D%20of%20estado.estilos)%20%7B%0Afor%20(const%20%5Bprop%2C%20salvo%5D%20of%20salvos)%20if%20(prop%20!%3D%3D%20'transition')%20restaurar(el%2C%20prop%2C%20salvo)%3B%0Aif%20(salvos.has('transition'))%20el.ownerDocument.defaultView.getComputedStyle(el).opacity%3B%20%2F%2F%20aplica%20antes%20de%20religar%20a%20transi%C3%A7%C3%A3o%0A%7D%0Afor%20(const%20%5Bel%2C%20salvos%5D%20of%20estado.estilos)%20if%20(salvos.has('transition'))%20restaurar(el%2C%20'transition'%2C%20salvos.get('transition'))%3B%0A%7D%0Afunction%20aguardarPintura()%20%7B%0Areturn%20new%20Promise((pronto)%20%3D%3E%20%7B%0Aconst%20limite%20%3D%20setTimeout(pronto%2C%20300)%3B%0ArequestAnimationFrame(()%20%3D%3E%0ArequestAnimationFrame(()%20%3D%3E%20%7B%0AclearTimeout(limite)%3B%0Apronto()%3B%0A%7D)%2C%0A)%3B%0A%7D)%3B%0A%7D%0Afunction%20exigirEstado()%20%7B%0Aif%20(!estado)%20throw%20new%20Error('Captura%20n%C3%A3o%20iniciada%20nesta%20p%C3%A1gina.')%3B%0Areturn%20estado%3B%0A%7D%0Aconst%20api%20%3D%20%7B%0Ainiciar()%20%7B%0Aif%20(estado)%20api.finalizar()%3B%0Aconst%20sc%20%3D%20acharRolagem()%3B%0Aestado%20%3D%20%7B%20sc%2C%20topoOriginal%3A%20sc.topo()%2C%20estilos%3A%20new%20Map()%20%7D%3B%0Afor%20(const%20el%20of%20sc.alvosEstilo)%20%7B%0AdefinirEstilo(el%2C%20'scroll-behavior'%2C%20'auto')%3B%0AdefinirEstilo(el%2C%20'scroll-snap-type'%2C%20'none')%3B%0A%7D%0Aconst%20reg%20%3D%20sc.regiao()%3B%0Areturn%20%7B%20tipo%3A%20sc.tipo%2C%20max%3A%20sc.maximo()%2C%20altura%3A%20Math.round(reg.bottom%20-%20reg.top)%20%7D%3B%0A%7D%2C%0ArolarPara(y)%20%7B%0Aconst%20%7B%20sc%20%7D%20%3D%20exigirEstado()%3B%0Asc.rolar(y)%3B%0Areturn%20sc.topo()%3B%0A%7D%2C%0Amaximo()%20%7B%0Areturn%20exigirEstado().sc.maximo()%3B%0A%7D%2C%0Aasync%20prepararPrint(esconder)%20%7B%0Aconst%20%7B%20sc%20%7D%20%3D%20exigirEstado()%3B%0Aif%20(esconder)%20%7B%0Afor%20(const%20f%20of%20faixas(sc).lista)%20%7B%0Aif%20(!f.presa)%20continue%3B%0AdefinirEstilo(f.el%2C%20'transition'%2C%20'none')%3B%0AdefinirEstilo(f.el%2C%20'opacity'%2C%20'0')%3B%0A%7D%0A%7D%0Aconst%20%7B%20reg%2C%20h%2C%20lista%20%7D%20%3D%20faixas(sc)%3B%0Alet%20topo%20%3D%200%3B%0Alet%20base%20%3D%200%3B%0Afor%20(const%20f%20of%20lista)%20%7B%0Aif%20(f.lado%20%3D%3D%3D%20'topo')%20topo%20%3D%20Math.max(topo%2C%20f.b%20-%20reg.top)%3B%0Aelse%20base%20%3D%20Math.max(base%2C%20reg.bottom%20-%20f.t)%3B%0A%7D%0Aif%20(topo%20%2B%20base%20%3E%20h%20*%20COBERTURA_MAXIMA)%20%7B%0Aconst%20k%20%3D%20(h%20*%20COBERTURA_MAXIMA)%20%2F%20(topo%20%2B%20base)%3B%0Atopo%20*%3D%20k%3B%0Abase%20*%3D%20k%3B%0A%7D%0Aawait%20aguardarPintura()%3B%0Areturn%20%7B%0Atopo%3A%20sc.topo()%2C%0Amax%3A%20sc.maximo()%2C%0Aaltura%3A%20Math.round(h)%2C%0AocupadoTopo%3A%20Math.ceil(topo)%2C%0AocupadoBase%3A%20Math.ceil(base)%2C%0A%7D%3B%0A%7D%2C%0Afinalizar()%20%7B%0Aif%20(!estado)%20return%3B%0ArestaurarEstilos()%3B%0Aestado.sc.rolar(estado.topoOriginal)%3B%0Aestado%20%3D%20null%3B%0A%7D%2C%0A%7D%3B%0AglobalThis.__clippingPrints%20%3D%20Object.freeze(api)%3B%0A%7D)()%3B%0Aconst%20OPCOES_PADRAO%20%3D%20Object.freeze(%7B%0Asobreposicao%3A%2010%2C%20%2F%2F%20%25%20da%20%C3%A1rea%20vis%C3%ADvel%20repetida%20do%20print%20anterior%0Aespera%3A%20700%2C%20%2F%2F%20ms%20ap%C3%B3s%20cada%20rolagem%2C%20para%20a%20p%C3%A1gina%20terminar%20de%20carregar%0Alimite%3A%20400%2C%20%2F%2F%20m%C3%A1ximo%20de%20prints%20(evita%20rolar%20para%20sempre%20em%20p%C3%A1ginas%20infinitas)%0Aformato%3A%20'png'%2C%0AesconderFixos%3A%20true%2C%0AincluirInfo%3A%20true%2C%0AbaixarAuto%3A%20true%2C%0A%7D)%3B%0Afunction%20normalizarOpcoes(o%20%3D%20%7B%7D)%20%7B%0Aconst%20p%20%3D%20OPCOES_PADRAO%3B%0Aconst%20numero%20%3D%20(v%2C%20min%2C%20max%2C%20padrao)%20%3D%3E%20%7B%0Aif%20(v%20%3D%3D%3D%20''%20%7C%7C%20v%20%3D%3D%20null)%20return%20padrao%3B%0Aconst%20n%20%3D%20Math.round(Number(v))%3B%0Areturn%20Number.isFinite(n)%20%3F%20Math.min(max%2C%20Math.max(min%2C%20n))%20%3A%20padrao%3B%0A%7D%3B%0Aconst%20booleano%20%3D%20(v%2C%20padrao)%20%3D%3E%20(typeof%20v%20%3D%3D%3D%20'boolean'%20%3F%20v%20%3A%20padrao)%3B%0Areturn%20%7B%0Asobreposicao%3A%20numero(o.sobreposicao%2C%200%2C%2050%2C%20p.sobreposicao)%2C%0Aespera%3A%20numero(o.espera%2C%20200%2C%2010000%2C%20p.espera)%2C%0Alimite%3A%20numero(o.limite%2C%201%2C%202000%2C%20p.limite)%2C%0Aformato%3A%20o.formato%20%3D%3D%3D%20'jpeg'%20%3F%20'jpeg'%20%3A%20'png'%2C%0AesconderFixos%3A%20booleano(o.esconderFixos%2C%20p.esconderFixos)%2C%0AincluirInfo%3A%20booleano(o.incluirInfo%2C%20p.incluirInfo)%2C%0AbaixarAuto%3A%20booleano(o.baixarAuto%2C%20p.baixarAuto)%2C%0A%7D%3B%0A%7D%0Aconst%20NOMES_RESERVADOS%20%3D%20%2F%5E(con%7Cprn%7Caux%7Cnul%7Ccom%5Cd%7Clpt%5Cd)%24%2Fi%3B%0Afunction%20limparNome(nome%2C%20padrao%20%3D%20'prints')%20%7B%0Alet%20s%20%3D%20String(nome%20%3F%3F%20'')%0A.normalize('NFC')%0A.replace(%2F%5B%5Cu0000-%5Cu001f%5Cu007f%3C%3E%3A%22%2F%5C%5C%7C%3F*%5D%2Fg%2C%20'%20')%0A.replace(%2F%5Cs%2B%2Fg%2C%20'%20')%0A.trim()%3B%0As%20%3D%20Array.from(s).slice(0%2C%20100).join('').replace(%2F%5B.%20%5D%2B%24%2F%2C%20'').trim()%3B%0Aif%20(!s)%20return%20padrao%3B%0Areturn%20NOMES_RESERVADOS.test(s)%20%3F%20%60%24%7Bs%7D_%60%20%3A%20s%3B%0A%7D%0Afunction%20nomePrint(numero%2C%20total%2C%20formato)%20%7B%0Aconst%20casas%20%3D%20Math.max(3%2C%20String(total).length)%3B%0Areturn%20%60%24%7BString(numero).padStart(casas%2C%20'0')%7D.%24%7Bformato%20%3D%3D%3D%20'jpeg'%20%3F%20'jpg'%20%3A%20'png'%7D%60%3B%0A%7D%0Afunction%20avisoMotivo(sessao)%20%7B%0Aswitch%20(sessao.motivo)%20%7B%0Acase%20'parado'%3A%0Areturn%20'A%20captura%20foi%20interrompida%20antes%20do%20fim%20da%20p%C3%A1gina.'%3B%0Acase%20'limite'%3A%0Areturn%20%60O%20limite%20de%20%24%7Bsessao.total%7D%20prints%20foi%20atingido%20antes%20do%20fim%20da%20p%C3%A1gina.%20Aumente%20o%20limite%20nas%20op%C3%A7%C3%B5es%20e%20capture%20de%20novo.%60%3B%0Acase%20'erro'%3A%0Areturn%20%60A%20captura%20parou%20antes%20do%20fim%20da%20p%C3%A1gina%3A%20%24%7Bsessao.mensagemErro%20%7C%7C%20'erro%20desconhecido'%7D.%60%3B%0Adefault%3A%0Areturn%20''%3B%0A%7D%0A%7D%0Afunction%20textoInfo(sessao)%20%7B%0Aconst%20linhas%20%3D%20%5B%0A%60P%C3%A1gina%3A%20%24%7Bsessao.titulo%20%7C%7C%20'(sem%20t%C3%ADtulo)'%7D%60%2C%0A%60Endere%C3%A7o%3A%20%24%7Bsessao.url%20%7C%7C%20''%7D%60%2C%0A%60Capturado%20em%3A%20%24%7Bnew%20Date(sessao.data).toLocaleString('pt-BR')%7D%60%2C%0A%60Quantidade%20de%20prints%3A%20%24%7Bsessao.total%7D%60%2C%0A%5D%3B%0Aif%20(sessao.largura)%20linhas.push(%60Tamanho%20de%20cada%20print%3A%20%24%7Bsessao.largura%7D%20x%20%24%7Bsessao.altura%7D%20pixels%60)%3B%0Alinhas.push(%0A''%2C%0A%60Cada%20print%20repete%20o%20final%20do%20anterior%20(cerca%20de%20%24%7Bsessao.sobreposicao%7D%25%20da%20tela%2C%20mais%20a%20altura%60%2C%0A'de%20cabe%C3%A7alhos%2Frodap%C3%A9s%20fixos)%2C%20para%20que%20nenhum%20trecho%20da%20p%C3%A1gina%20fique%20de%20fora.'%2C%0A)%3B%0Aconst%20aviso%20%3D%20avisoMotivo(sessao)%3B%0Aif%20(aviso)%20linhas.push(''%2C%20%60ATEN%C3%87%C3%83O%3A%20%24%7Baviso%7D%60)%3B%0Areturn%20%60%EF%BB%BF%24%7Blinhas.join('%5Cr%5Cn')%7D%5Cr%5Cn%60%3B%0A%7D%0Aconst%20esperar%20%3D%20(ms)%20%3D%3E%20new%20Promise((pronto)%20%3D%3E%20setTimeout(pronto%2C%20ms))%3B%0Aasync%20function%20capturarComRolagem(%7B%20opcoes%2C%20pagina%2C%20tirarPrint%2C%20antesDoPrint%2C%20aoCapturar%2C%20deveParar%20%7D)%20%7B%0Alet%20total%20%3D%200%3B%0Alet%20motivo%20%3D%20'fim'%3B%0Alet%20erro%20%3D%20null%3B%0Alet%20alvo%20%3D%200%3B%0Alet%20anterior%20%3D%20-1%3B%0Atry%20%7B%0Aawait%20pagina('iniciar')%3B%0Afor%20(%3B%3B)%20%7B%0Aif%20(deveParar())%20%7B%0Amotivo%20%3D%20'parado'%3B%0Abreak%3B%0A%7D%0Aif%20(total%20%3E%3D%20opcoes.limite)%20%7B%0Amotivo%20%3D%20'limite'%3B%0Abreak%3B%0A%7D%0Aawait%20pagina('rolarPara'%2C%20alvo)%3B%0Aawait%20esperar(total%20%3D%3D%3D%200%20%3F%20opcoes.espera%20%2B%20300%20%3A%20opcoes.espera)%3B%0Aif%20(antesDoPrint)%20await%20antesDoPrint()%3B%0Aif%20(deveParar())%20%7B%0Amotivo%20%3D%20'parado'%3B%0Abreak%3B%0A%7D%0Aconst%20m%20%3D%20await%20pagina('prepararPrint'%2C%20opcoes.esconderFixos%20%26%26%20total%20%3E%200)%3B%0Aif%20(total%20%3E%200%20%26%26%20m.topo%20%3C%3D%20anterior)%20break%3B%20%2F%2F%20a%20p%C3%A1gina%20n%C3%A3o%20rola%20mais%0Aconst%20blob%20%3D%20await%20tirarPrint()%3B%0Aif%20(!blob)%20%7B%0Amotivo%20%3D%20'parado'%3B%0Abreak%3B%0A%7D%0Atotal%2B%2B%3B%0Aconst%20porcento%20%3D%20m.max%20%3E%200%20%3F%20Math.min(100%2C%20Math.round((m.topo%20%2F%20m.max)%20*%20100))%20%3A%20100%3B%0Aawait%20aoCapturar(blob%2C%20total%2C%20porcento%2C%20m)%3B%0Aanterior%20%3D%20m.topo%3B%0Aif%20(m.topo%20%3E%3D%20m.max%20-%201)%20%7B%0Aawait%20esperar(opcoes.espera)%3B%0Aif%20((await%20pagina('maximo'))%20%3C%3D%20m.topo%20%2B%201)%20break%3B%0A%7D%0Aconst%20repetido%20%3D%20Math.round((m.altura%20*%20opcoes.sobreposicao)%20%2F%20100)%3B%0Aconst%20passo%20%3D%20m.altura%20-%20m.ocupadoTopo%20-%20m.ocupadoBase%20-%20repetido%3B%0Aalvo%20%3D%20m.topo%20%2B%20Math.max(Math.round(m.altura%20*%200.2)%2C%20passo)%3B%0A%7D%0A%7D%20catch%20(e)%20%7B%0Amotivo%20%3D%20'erro'%3B%0Aerro%20%3D%20e%3B%0A%7D%20finally%20%7B%0Atry%20%7B%0Aawait%20pagina('finalizar')%3B%0A%7D%20catch%20%7B%0A%7D%0A%7D%0Areturn%20%7B%20total%2C%20motivo%2C%20erro%20%7D%3B%0A%7D%0Aconst%20TABELA_CRC%20%3D%20new%20Uint32Array(256).map((_%2C%20n)%20%3D%3E%20%7B%0Alet%20c%20%3D%20n%3B%0Afor%20(let%20k%20%3D%200%3B%20k%20%3C%208%3B%20k%2B%2B)%20c%20%3D%20c%20%26%201%20%3F%200xedb88320%20%5E%20(c%20%3E%3E%3E%201)%20%3A%20c%20%3E%3E%3E%201%3B%0Areturn%20c%20%3E%3E%3E%200%3B%0A%7D)%3B%0Afunction%20crc32(bytes)%20%7B%0Alet%20c%20%3D%200xffffffff%3B%0Afor%20(let%20i%20%3D%200%3B%20i%20%3C%20bytes.length%3B%20i%2B%2B)%20c%20%3D%20TABELA_CRC%5B(c%20%5E%20bytes%5Bi%5D)%20%26%200xff%5D%20%5E%20(c%20%3E%3E%3E%208)%3B%0Areturn%20(c%20%5E%200xffffffff)%20%3E%3E%3E%200%3B%0A%7D%0Afunction%20dataHoraDos(d)%20%7B%0Aconst%20ano%20%3D%20Math.min(Math.max(d.getFullYear()%2C%201980)%2C%202107)%3B%0Areturn%20%7B%0Ahora%3A%20(d.getHours()%20%3C%3C%2011)%20%7C%20(d.getMinutes()%20%3C%3C%205)%20%7C%20(d.getSeconds()%20%3E%3E%201)%2C%0Adata%3A%20((ano%20-%201980)%20%3C%3C%209)%20%7C%20((d.getMonth()%20%2B%201)%20%3C%3C%205)%20%7C%20d.getDate()%2C%0A%7D%3B%0A%7D%0Afunction%20criarZip(entradas%2C%20quando%20%3D%20new%20Date())%20%7B%0Aif%20(entradas.length%20%3E%200xffff)%20throw%20new%20Error('Arquivos%20demais%20para%20um%20%C3%BAnico%20ZIP.')%3B%0Aconst%20%7B%20hora%2C%20data%20%7D%20%3D%20dataHoraDos(quando)%3B%0Aconst%20utf8%20%3D%20new%20TextEncoder()%3B%0Aconst%20locais%20%3D%20%5B%5D%3B%0Aconst%20centrais%20%3D%20%5B%5D%3B%0Alet%20deslocamento%20%3D%200%3B%0Afor%20(const%20entrada%20of%20entradas)%20%7B%0Aconst%20nome%20%3D%20utf8.encode(entrada.nome)%3B%0Aconst%20dados%20%3D%20entrada.dados%20%7C%7C%20new%20Uint8Array(0)%3B%0Aconst%20ehPasta%20%3D%20entrada.nome.endsWith('%2F')%3B%0Aconst%20crc%20%3D%20crc32(dados)%3B%0Aif%20(deslocamento%20%2B%2030%20%2B%20nome.length%20%2B%20dados.length%20%3E%200xffffffff)%20%7B%0Athrow%20new%20Error('O%20ZIP%20passaria%20de%204%20GB.%20Diminua%20o%20limite%20de%20prints%20ou%20use%20JPEG.')%3B%0A%7D%0Aconst%20local%20%3D%20new%20DataView(new%20ArrayBuffer(30))%3B%0Alocal.setUint32(0%2C%200x04034b50%2C%20true)%3B%0Alocal.setUint16(4%2C%2020%2C%20true)%3B%20%2F%2F%20vers%C3%A3o%20necess%C3%A1ria%0Alocal.setUint16(6%2C%200x0800%2C%20true)%3B%20%2F%2F%20nomes%20em%20UTF-8%0Alocal.setUint16(8%2C%200%2C%20true)%3B%20%2F%2F%20sem%20compress%C3%A3o%0Alocal.setUint16(10%2C%20hora%2C%20true)%3B%0Alocal.setUint16(12%2C%20data%2C%20true)%3B%0Alocal.setUint32(14%2C%20crc%2C%20true)%3B%0Alocal.setUint32(18%2C%20dados.length%2C%20true)%3B%0Alocal.setUint32(22%2C%20dados.length%2C%20true)%3B%0Alocal.setUint16(26%2C%20nome.length%2C%20true)%3B%0Alocal.setUint16(28%2C%200%2C%20true)%3B%0Alocais.push(local%2C%20nome%2C%20dados)%3B%0Aconst%20central%20%3D%20new%20DataView(new%20ArrayBuffer(46))%3B%0Acentral.setUint32(0%2C%200x02014b50%2C%20true)%3B%0Acentral.setUint16(4%2C%2020%2C%20true)%3B%20%2F%2F%20criado%20por%3A%20MS-DOS%2C%20vers%C3%A3o%202.0%0Acentral.setUint16(6%2C%2020%2C%20true)%3B%0Acentral.setUint16(8%2C%200x0800%2C%20true)%3B%0Acentral.setUint16(10%2C%200%2C%20true)%3B%0Acentral.setUint16(12%2C%20hora%2C%20true)%3B%0Acentral.setUint16(14%2C%20data%2C%20true)%3B%0Acentral.setUint32(16%2C%20crc%2C%20true)%3B%0Acentral.setUint32(20%2C%20dados.length%2C%20true)%3B%0Acentral.setUint32(24%2C%20dados.length%2C%20true)%3B%0Acentral.setUint16(28%2C%20nome.length%2C%20true)%3B%0Acentral.setUint32(38%2C%20ehPasta%20%3F%200x10%20%3A%200%2C%20true)%3B%20%2F%2F%20atributo%20de%20pasta%20do%20DOS%0Acentral.setUint32(42%2C%20deslocamento%2C%20true)%3B%0Acentrais.push(central%2C%20nome)%3B%0Adeslocamento%20%2B%3D%2030%20%2B%20nome.length%20%2B%20dados.length%3B%0A%7D%0Aconst%20tamanhoCentral%20%3D%20centrais.reduce((soma%2C%20parte)%20%3D%3E%20soma%20%2B%20parte.byteLength%2C%200)%3B%0Aconst%20fim%20%3D%20new%20DataView(new%20ArrayBuffer(22))%3B%0Afim.setUint32(0%2C%200x06054b50%2C%20true)%3B%0Afim.setUint16(8%2C%20entradas.length%2C%20true)%3B%0Afim.setUint16(10%2C%20entradas.length%2C%20true)%3B%0Afim.setUint32(12%2C%20tamanhoCentral%2C%20true)%3B%0Afim.setUint32(16%2C%20deslocamento%2C%20true)%3B%0Areturn%20new%20Blob(%5B...locais%2C%20...centrais%2C%20fim%5D%2C%20%7B%20type%3A%20'application%2Fzip'%20%7D)%3B%0A%7D%0Afunction%20abrirPainel()%20%7B%0Aconst%20ID%20%3D%20'clipping-prints-painel'%3B%0Aconst%20existente%20%3D%20document.getElementById(ID)%3B%0Aif%20(existente)%20%7B%0Aif%20(!existente.dataset.capturando)%20existente.remove()%3B%20%2F%2F%20abrir%20de%20novo%20fecha%20o%20painel%0Areturn%3B%0A%7D%0Aconst%20api%20%3D%20globalThis.__clippingPrints%3B%0Aconst%20padrao%20%3D%20normalizarOpcoes()%3B%0Aconst%20espera%20%3D%20(ms)%20%3D%3E%20new%20Promise((pronto)%20%3D%3E%20setTimeout(pronto%2C%20ms))%3B%0Aconst%20criar%20%3D%20(tag%2C%20estilo%20%3D%20%7B%7D%2C%20props%20%3D%20%7B%7D%2C%20filhos%20%3D%20%5B%5D)%20%3D%3E%20%7B%0Aconst%20el%20%3D%20document.createElement(tag)%3B%0AObject.assign(el.style%2C%20estilo)%3B%0AObject.assign(el%2C%20props)%3B%0Ael.append(...filhos)%3B%0Areturn%20el%3B%0A%7D%3B%0Aconst%20texto%20%3D%20%7B%20fontSize%3A%20'13px'%2C%20lineHeight%3A%20'1.45'%2C%20color%3A%20'%231f2937'%20%7D%3B%0Aconst%20campo%20%3D%20%7B%0Afont%3A%20'inherit'%2C%0Acolor%3A%20'%231f2937'%2C%0Abackground%3A%20'%23f9fafb'%2C%0Aborder%3A%20'1px%20solid%20%23d1d5db'%2C%0AborderRadius%3A%20'6px'%2C%0Apadding%3A%20'6px%208px'%2C%0AboxSizing%3A%20'border-box'%2C%0A%7D%3B%0Aconst%20botao%20%3D%20%7B%0Afont%3A%20'inherit'%2C%0AfontWeight%3A%20'600'%2C%0Awidth%3A%20'100%25'%2C%0Apadding%3A%20'8px%2010px'%2C%0AmarginTop%3A%20'10px'%2C%0AborderRadius%3A%20'6px'%2C%0Aborder%3A%20'1px%20solid%20%232563eb'%2C%0Abackground%3A%20'%232563eb'%2C%0Acolor%3A%20'%23fff'%2C%0Acursor%3A%20'pointer'%2C%0A%7D%3B%0Aconst%20host%20%3D%20criar('div'%2C%20%7B%7D%2C%20%7B%20id%3A%20ID%20%7D)%3B%0Ahost.style.all%20%3D%20'initial'%3B%0AObject.assign(host.style%2C%20%7B%20position%3A%20'fixed'%2C%20top%3A%20'16px'%2C%20right%3A%20'16px'%2C%20zIndex%3A%20'2147483647'%20%7D)%3B%0Aconst%20raiz%20%3D%20host.attachShadow(%7B%20mode%3A%20'open'%20%7D)%3B%0Aconst%20inPasta%20%3D%20criar('input'%2C%20%7B%20...campo%2C%20width%3A%20'100%25'%20%7D%2C%20%7B%20type%3A%20'text'%2C%20value%3A%20limparNome(document.title)%2C%20maxLength%3A%20100%20%7D)%3B%0Aconst%20inSobre%20%3D%20criar('input'%2C%20%7B%20...campo%2C%20width%3A%20'64px'%2C%20textAlign%3A%20'right'%20%7D%2C%20%7B%20type%3A%20'number'%2C%20min%3A%200%2C%20max%3A%2050%2C%20value%3A%20padrao.sobreposicao%20%7D)%3B%0Aconst%20inEspera%20%3D%20criar('input'%2C%20%7B%20...campo%2C%20width%3A%20'72px'%2C%20textAlign%3A%20'right'%20%7D%2C%20%7B%20type%3A%20'number'%2C%20min%3A%20200%2C%20max%3A%2010000%2C%20step%3A%20100%2C%20value%3A%20padrao.espera%20%7D)%3B%0Aconst%20chkFixos%20%3D%20criar('input'%2C%20%7B%20margin%3A%20'2px%200%200'%20%7D%2C%20%7B%20type%3A%20'checkbox'%2C%20checked%3A%20padrao.esconderFixos%20%7D)%3B%0Aconst%20chkInfo%20%3D%20criar('input'%2C%20%7B%20margin%3A%20'2px%200%200'%20%7D%2C%20%7B%20type%3A%20'checkbox'%2C%20checked%3A%20padrao.incluirInfo%20%7D)%3B%0Aconst%20btIniciar%20%3D%20criar('button'%2C%20botao%2C%20%7B%20type%3A%20'button'%2C%20textContent%3A%20'Iniciar%20captura'%20%7D)%3B%0Aconst%20btBaixar%20%3D%20criar('button'%2C%20%7B%20...botao%2C%20background%3A%20'%23fff'%2C%20color%3A%20'%232563eb'%2C%20display%3A%20'none'%20%7D%2C%20%7B%20type%3A%20'button'%2C%20textContent%3A%20'Baixar%20o%20ZIP%20de%20novo'%20%7D)%3B%0Aconst%20status%20%3D%20criar('p'%2C%20%7B%20...texto%2C%20margin%3A%20'10px%200%200'%2C%20display%3A%20'none'%20%7D%2C%20%7B%20role%3A%20'status'%20%7D)%3B%0Aconst%20fechar%20%3D%20criar(%0A'button'%2C%0A%7B%20font%3A%20'20px%2F1%20system-ui%2C%20sans-serif'%2C%20border%3A%20'0'%2C%20background%3A%20'none'%2C%20color%3A%20'%236b7280'%2C%20cursor%3A%20'pointer'%2C%20padding%3A%20'0%202px'%20%7D%2C%0A%7B%20type%3A%20'button'%2C%20textContent%3A%20'%C3%97'%2C%20title%3A%20'Fechar'%20%7D%2C%0A)%3B%0Aconst%20linha%20%3D%20(rotulo%2C%20entrada%2C%20sufixo)%20%3D%3E%0Acriar('label'%2C%20%7B%20...texto%2C%20display%3A%20'flex'%2C%20alignItems%3A%20'center'%2C%20justifyContent%3A%20'space-between'%2C%20gap%3A%20'8px'%2C%20margin%3A%20'6px%200'%20%7D%2C%20%7B%7D%2C%20%5B%0Arotulo%2C%0Acriar('span'%2C%20%7B%7D%2C%20%7B%7D%2C%20%5Bentrada%2C%20sufixo%20%7C%7C%20''%5D)%2C%0A%5D)%3B%0Aconst%20caixa%20%3D%20(entrada%2C%20rotulo)%20%3D%3E%0Acriar('label'%2C%20%7B%20...texto%2C%20display%3A%20'flex'%2C%20gap%3A%20'6px'%2C%20alignItems%3A%20'flex-start'%2C%20margin%3A%20'6px%200'%20%7D%2C%20%7B%7D%2C%20%5Bentrada%2C%20rotulo%5D)%3B%0Aconst%20cartao%20%3D%20criar(%0A'div'%2C%0A%7B%0A...texto%2C%0AfontFamily%3A%20%22system-ui%2C%20-apple-system%2C%20'Segoe%20UI'%2C%20Roboto%2C%20sans-serif%22%2C%0Awidth%3A%20'300px'%2C%0AboxSizing%3A%20'border-box'%2C%0Apadding%3A%20'14px%2016px%2016px'%2C%0Abackground%3A%20'%23fff'%2C%0Aborder%3A%20'1px%20solid%20%23d1d5db'%2C%0AborderRadius%3A%20'10px'%2C%0AboxShadow%3A%20'0%2010px%2030px%20rgba(0%2C0%2C0%2C.25)'%2C%0A%7D%2C%0A%7B%7D%2C%0A%5B%0Acriar('div'%2C%20%7B%20display%3A%20'flex'%2C%20alignItems%3A%20'center'%2C%20justifyContent%3A%20'space-between'%2C%20marginBottom%3A%20'10px'%20%7D%2C%20%7B%7D%2C%20%5B%0Acriar('strong'%2C%20%7B%20fontSize%3A%20'15px'%20%7D%2C%20%7B%20textContent%3A%20'Prints%20com%20rolagem'%20%7D)%2C%0Afechar%2C%0A%5D)%2C%0Acriar('label'%2C%20%7B%20display%3A%20'grid'%2C%20gap%3A%20'4px'%2C%20fontWeight%3A%20'500'%20%7D%2C%20%7B%7D%2C%20%5B'Nome%20da%20pasta%20e%20do%20ZIP'%2C%20inPasta%5D)%2C%0Alinha('Sobreposi%C3%A7%C3%A3o%20entre%20prints'%2C%20inSobre%2C%20'%20%25')%2C%0Alinha('Espera%20ap%C3%B3s%20cada%20rolagem'%2C%20inEspera%2C%20'%20ms')%2C%0Acaixa(chkFixos%2C%20'Esconder%20cabe%C3%A7alhos%20e%20rodap%C3%A9s%20fixos%20a%20partir%20do%202%C2%BA%20print')%2C%0Acaixa(chkInfo%2C%20'Incluir%20info.txt%20com%20o%20endere%C3%A7o%20da%20p%C3%A1gina')%2C%0AbtIniciar%2C%0AbtBaixar%2C%0Astatus%2C%0Acriar('p'%2C%20%7B%20fontSize%3A%20'12px'%2C%20lineHeight%3A%20'1.4'%2C%20color%3A%20'%236b7280'%2C%20margin%3A%20'10px%200%200'%20%7D%2C%20%7B%0AtextContent%3A%0A'O%20navegador%20vai%20perguntar%20se%20pode%20compartilhar%20esta%20aba%3A%20clique%20em%20%E2%80%9CPermitir%E2%80%9D%2F%E2%80%9CCompartilhar%E2%80%9D.%20'%20%2B%0A'N%C3%A3o%20troque%20de%20aba%20durante%20a%20captura.%20Para%20parar%20antes%20do%20fim%2C%20aperte%20Esc%20ou%20%E2%80%9CParar%20de%20compartilhar%E2%80%9D.'%2C%0A%7D)%2C%0A%5D%2C%0A)%3B%0Araiz.append(cartao)%3B%0Adocument.documentElement.append(host)%3B%0Aconst%20mostrarStatus%20%3D%20(msg%2C%20erro%20%3D%20false)%20%3D%3E%20%7B%0Astatus.textContent%20%3D%20msg%3B%0Astatus.style.display%20%3D%20msg%20%3F%20'block'%20%3A%20'none'%3B%0Astatus.style.color%20%3D%20erro%20%3F%20'%23b91c1c'%20%3A%20'%231f2937'%3B%0A%7D%3B%0Afechar.addEventListener('click'%2C%20()%20%3D%3E%20host.remove())%3B%0Alet%20ultimoZip%20%3D%20null%3B%0Aconst%20baixar%20%3D%20()%20%3D%3E%20%7B%0Aconst%20url%20%3D%20URL.createObjectURL(ultimoZip.blob)%3B%0Aconst%20a%20%3D%20document.createElement('a')%3B%20%2F%2F%20fora%20do%20documento%3A%20o%20site%20n%C3%A3o%20intercepta%20o%20clique%0Aa.href%20%3D%20url%3B%0Aa.download%20%3D%20ultimoZip.nome%3B%0Aa.click()%3B%0AsetTimeout(()%20%3D%3E%20URL.revokeObjectURL(url)%2C%2060_000)%3B%0A%7D%3B%0AbtBaixar.addEventListener('click'%2C%20baixar)%3B%0Aasync%20function%20compartilharAba()%20%7B%0Aif%20(!navigator.mediaDevices%3F.getDisplayMedia)%20%7B%0Athrow%20new%20Error('este%20navegador%20n%C3%A3o%20permite%20captura%20de%20tela%20por%20script.%20Use%20o%20Chrome%20ou%20o%20Edge%20atualizado.')%3B%0A%7D%0Aconst%20stream%20%3D%20await%20navigator.mediaDevices.getDisplayMedia(%7B%0Avideo%3A%20%7B%20displaySurface%3A%20'browser'%2C%20frameRate%3A%20%7B%20ideal%3A%2015%20%7D%2C%20width%3A%20%7B%20max%3A%208192%20%7D%2C%20height%3A%20%7B%20max%3A%208192%20%7D%20%7D%2C%0Aaudio%3A%20false%2C%0ApreferCurrentTab%3A%20true%2C%0AselfBrowserSurface%3A%20'include'%2C%0AsurfaceSwitching%3A%20'exclude'%2C%0AmonitorTypeSurfaces%3A%20'exclude'%2C%0A%7D)%3B%0Aconst%20%5Btrilha%5D%20%3D%20stream.getVideoTracks()%3B%0Aconst%20encerrar%20%3D%20()%20%3D%3E%20stream.getTracks().forEach((t)%20%3D%3E%20t.stop())%3B%0Aconst%20superficie%20%3D%20trilha.getSettings().displaySurface%3B%0Aif%20(superficie%20%26%26%20superficie%20!%3D%3D%20'browser')%20%7B%0Aencerrar()%3B%0Athrow%20new%20Error('escolha%20compartilhar%20ESTA%20ABA%20(n%C3%A3o%20a%20tela%20inteira%20nem%20uma%20janela).')%3B%0A%7D%0Aconst%20video%20%3D%20document.createElement('video')%3B%0Avideo.muted%20%3D%20true%3B%0Avideo.playsInline%20%3D%20true%3B%0Avideo.srcObject%20%3D%20stream%3B%0Aawait%20video.play()%3B%0Areturn%20%7B%20trilha%2C%20video%2C%20encerrar%20%7D%3B%0A%7D%0Afunction%20printDoVideo(video)%20%7B%0Aconst%20canvas%20%3D%20document.createElement('canvas')%3B%0Acanvas.width%20%3D%20video.videoWidth%3B%0Acanvas.height%20%3D%20video.videoHeight%3B%0Acanvas.getContext('2d').drawImage(video%2C%200%2C%200)%3B%0Areturn%20new%20Promise((pronto%2C%20falha)%20%3D%3E%0Acanvas.toBlob((blob)%20%3D%3E%20(blob%20%3F%20pronto(blob)%20%3A%20falha(new%20Error('falha%20ao%20gerar%20a%20imagem')))%2C%20'image%2Fpng')%2C%0A)%3B%0A%7D%0AbtIniciar.addEventListener('click'%2C%20async%20()%20%3D%3E%20%7B%0Aconst%20opcoes%20%3D%20normalizarOpcoes(%7B%0Asobreposicao%3A%20inSobre.value%2C%0Aespera%3A%20inEspera.value%2C%0AesconderFixos%3A%20chkFixos.checked%2C%0AincluirInfo%3A%20chkInfo.checked%2C%0Aformato%3A%20'png'%2C%0A%7D)%3B%0Aconst%20pasta%20%3D%20limparNome(inPasta.value%20%7C%7C%20document.title)%3B%0AinPasta.value%20%3D%20pasta%3B%0Ahost.dataset.capturando%20%3D%20'1'%3B%0AbtIniciar.disabled%20%3D%20true%3B%0AbtBaixar.style.display%20%3D%20'none'%3B%0AmostrarStatus('Aguardando%20voc%C3%AA%20permitir%20o%20compartilhamento%20da%20aba%E2%80%A6')%3B%0Alet%20captura%3B%0Atry%20%7B%0Acaptura%20%3D%20await%20compartilharAba()%3B%0A%7D%20catch%20(e)%20%7B%0Adelete%20host.dataset.capturando%3B%0AbtIniciar.disabled%20%3D%20false%3B%0AmostrarStatus(%0Ae.name%20%3D%3D%3D%20'NotAllowedError'%0A%3F%20'O%20compartilhamento%20n%C3%A3o%20foi%20permitido.%20Clique%20em%20%E2%80%9CIniciar%20captura%E2%80%9D%20de%20novo%20e%20escolha%20%E2%80%9CPermitir%E2%80%9D.'%0A%3A%20%60N%C3%A3o%20foi%20poss%C3%ADvel%20compartilhar%20a%20aba%3A%20%24%7Be.message%7D%60%2C%0Atrue%2C%0A)%3B%0Areturn%3B%0A%7D%0Ahost.style.display%20%3D%20'none'%3B%20%2F%2F%20o%20painel%20n%C3%A3o%20pode%20aparecer%20nos%20prints%0Aconst%20tituloOriginal%20%3D%20document.title%3B%0Aconst%20prints%20%3D%20%5B%5D%3B%0Alet%20parar%20%3D%20false%3B%0Aconst%20aoTeclar%20%3D%20(ev)%20%3D%3E%20%7B%0Aif%20(ev.key%20%3D%3D%3D%20'Escape')%20parar%20%3D%20true%3B%0A%7D%3B%0AaddEventListener('keydown'%2C%20aoTeclar%2C%20true)%3B%0Acaptura.trilha.addEventListener('ended'%2C%20()%20%3D%3E%20%7B%0Aparar%20%3D%20true%3B%0A%7D)%3B%0Aconst%20resultado%20%3D%20await%20capturarComRolagem(%7B%0Aopcoes%2C%0Apagina%3A%20async%20(metodo%2C%20arg)%20%3D%3E%20api%5Bmetodo%5D(arg)%2C%0AantesDoPrint%3A%20async%20()%20%3D%3E%20%7B%0Aif%20(!document.hidden)%20return%3B%0Awhile%20(document.hidden%20%26%26%20!parar)%20await%20espera(500)%3B%0Aawait%20espera(opcoes.espera)%3B%0A%7D%2C%0AtirarPrint%3A%20async%20()%20%3D%3E%20(captura.trilha.readyState%20%3D%3D%3D%20'ended'%20%3F%20null%20%3A%20printDoVideo(captura.video))%2C%0AaoCapturar%3A%20(blob%2C%20n%2C%20porcento)%20%3D%3E%20%7B%0Aprints.push(blob)%3B%0Adocument.title%20%3D%20%60(%24%7Bn%7D%20prints%20%C2%B7%20%24%7Bporcento%7D%25)%20%24%7BtituloOriginal%7D%60%3B%0A%7D%2C%0AdeveParar%3A%20()%20%3D%3E%20parar%2C%0A%7D)%3B%0Aconst%20largura%20%3D%20captura.video.videoWidth%3B%0Aconst%20altura%20%3D%20captura.video.videoHeight%3B%0AremoveEventListener('keydown'%2C%20aoTeclar%2C%20true)%3B%0Acaptura.encerrar()%3B%0Adocument.title%20%3D%20tituloOriginal%3B%0Ahost.style.display%20%3D%20''%3B%0Adelete%20host.dataset.capturando%3B%0AbtIniciar.disabled%20%3D%20false%3B%0Aif%20(!prints.length)%20%7B%0AmostrarStatus(%60Nenhum%20print%20foi%20capturado%24%7Bresultado.erro%20%3F%20%60%3A%20%24%7Bresultado.erro.message%7D%60%20%3A%20'.'%7D%60%2C%20true)%3B%0Areturn%3B%0A%7D%0AmostrarStatus('Montando%20o%20ZIP%E2%80%A6')%3B%0Aconst%20sessao%20%3D%20%7B%0Apasta%2C%0Atitulo%3A%20tituloOriginal%2C%0Aurl%3A%20location.href%2C%0Adata%3A%20Date.now()%2C%0Atotal%3A%20prints.length%2C%0Aformato%3A%20'png'%2C%0Alargura%2C%0Aaltura%2C%0Asobreposicao%3A%20opcoes.sobreposicao%2C%0Amotivo%3A%20resultado.motivo%2C%0AmensagemErro%3A%20resultado.erro%3F.message%2C%0A%7D%3B%0Aconst%20entradas%20%3D%20%5B%7B%20nome%3A%20%60%24%7Bpasta%7D%2F%60%20%7D%5D%3B%0Afor%20(const%20%5Bi%2C%20blob%5D%20of%20prints.entries())%20%7B%0Aentradas.push(%7B%20nome%3A%20%60%24%7Bpasta%7D%2F%24%7BnomePrint(i%20%2B%201%2C%20prints.length%2C%20'png')%7D%60%2C%20dados%3A%20new%20Uint8Array(await%20blob.arrayBuffer())%20%7D)%3B%0A%7D%0Aif%20(opcoes.incluirInfo)%20entradas.push(%7B%20nome%3A%20%60%24%7Bpasta%7D%2Finfo.txt%60%2C%20dados%3A%20new%20TextEncoder().encode(textoInfo(sessao))%20%7D)%3B%0Atry%20%7B%0AultimoZip%20%3D%20%7B%20blob%3A%20criarZip(entradas%2C%20new%20Date(sessao.data))%2C%20nome%3A%20%60%24%7Bpasta%7D.zip%60%20%7D%3B%0A%7D%20catch%20(e)%20%7B%0AmostrarStatus(%60N%C3%A3o%20foi%20poss%C3%ADvel%20montar%20o%20ZIP%3A%20%24%7Be.message%7D%60%2C%20true)%3B%0Areturn%3B%0A%7D%0Abaixar()%3B%0Aconst%20aviso%20%3D%20avisoMotivo(sessao)%3B%0AmostrarStatus(%60Pronto!%20%24%7Bprints.length%7D%20prints%20baixados%20em%20%E2%80%9C%24%7BultimoZip.nome%7D%E2%80%9D.%24%7Baviso%20%3F%20%60%20Aten%C3%A7%C3%A3o%3A%20%24%7Baviso%7D%60%20%3A%20''%7D%60%2C%20Boolean(aviso))%3B%0AbtBaixar.style.display%20%3D%20'block'%3B%0A%7D)%3B%0A%7D%0AabrirPainel()%3B%0A%7D)()%3B" title="Arraste para a barra de favoritos"><svg viewBox="0 0 128 128" aria-hidden="true"><rect width="128" height="128" rx="28" fill="currentColor" opacity=".25"/><rect x="24" y="28" width="54" height="66" rx="7" fill="currentColor"/><circle cx="90" cy="90" r="25" fill="currentColor"/><path d="M90 76v26m-11-11 11 11 11-11" stroke="var(--acento)" stroke-width="9" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>Prints com rolagem</a>
+        </div>
+      </li>
+      <li>
+        <div>
+          <p>Se arrastar não funcionar, copie o endereço do favorito e crie-o à mão: botão direito na barra de favoritos, <b>Adicionar página…</b>, nome <b>Prints com rolagem</b> e, no campo URL, cole o que foi copiado.</p>
+          <div class="secundario"><button id="copiar" type="button">Copiar endereço do favorito</button></div>
+          <p id="nota-copia" class="nota" role="status"></p>
+          <textarea id="texto-favorito" readonly hidden aria-label="Endereço do favorito"></textarea>
+        </div>
+      </li>
+    </ol>
+  </section>
+
+  <section aria-labelledby="t-usar">
+    <h2 id="t-usar">Usar</h2>
+    <ol class="passos">
+      <li><div><p>Abra a página que vai transcrever (faça login antes, se precisar) e clique no favorito <b>Prints com rolagem</b>. Um painel aparece no canto da página.</p></div></li>
+      <li><div><p>Confira o nome da pasta (vem com o título da página) e clique em <b>Iniciar captura</b>.</p></div></li>
+      <li><div><p>O navegador pergunta se pode compartilhar esta aba: clique em <b>Permitir</b> ou <b>Compartilhar</b>. É assim que o favorito consegue tirar os prints sem instalar nada.</p></div></li>
+      <li><div><p>Espere sem trocar de aba. O painel some durante a captura e o título da aba mostra o progresso. Para parar antes do fim, aperte <kbd>Esc</kbd> ou <b>Parar de compartilhar</b>: o que já foi capturado é salvo.</p></div></li>
+      <li><div><p>No fim, o ZIP é baixado sozinho. Se não baixar, use o botão <b>Baixar o ZIP de novo</b> no painel.</p></div></li>
+    </ol>
+  </section>
+
+  <section aria-labelledby="t-zip">
+    <h2 id="t-zip">O que vem no ZIP</h2>
+    <div class="duas">
+      <div class="texto-zip">
+        <pre class="zip">Diário Oficial 05-10-2026.zip
+└─ Diário Oficial 05-10-2026/
+   ├─ 001.png
+   ├─ 002.png
+   ├─ 003.png
+   ├─ …
+   └─ info.txt   (endereço, data e nº de prints)</pre>
+        <ul>
+          <li>Cada print repete um pedaço do final do anterior, então nenhuma linha fica cortada entre dois prints.</li>
+          <li>Cabeçalhos e rodapés fixos do site são descontados (e escondidos a partir do 2º print), para não cobrirem o texto.</li>
+          <li>Depois de cada rolagem ele espera a página carregar, inclusive conteúdo que só aparece ao rolar.</li>
+        </ul>
+      </div>
+      <figure class="esquema">
+        <div class="folha" aria-hidden="true">
+          <div class="recorte" style="top: 0"><span>001</span></div>
+          <div class="recorte" style="top: 5.7rem"><span>002</span></div>
+          <div class="recorte" style="top: 11.4rem"><span>003</span></div>
+        </div>
+        <figcaption>Os prints se sobrepõem um pouco ao descer a página.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section aria-labelledby="t-dicas">
+    <h2 id="t-dicas">Dicas e limites</h2>
+    <ul class="lista">
+      <li>Tela cheia (<kbd>F11</kbd>) deixa os prints maiores e em menor número.</li>
+      <li>Funciona no Chrome e no Edge atualizados, no computador. O PDF aberto no leitor do navegador não rola sozinho: nesse caso, baixe o PDF.</li>
+      <li>Se o site bloquear o painel, use a extensão (mais completa), que está no repositório <code>CLIPPING</code>, pasta <code>extensao</code>.</li>
+    </ul>
+  </section>
+</main>
+<script>
+const favorito = document.getElementById('favorito');
+const nota = document.getElementById('nota-copia');
+const area = document.getElementById('texto-favorito');
+favorito.addEventListener('click', (ev) => {
+  ev.preventDefault();
+  nota.textContent = 'Arraste o botão (não clique): segure com o mouse e solte em cima da barra de favoritos.';
+});
+document.getElementById('copiar').addEventListener('click', async () => {
+  const texto = favorito.getAttribute('href');
+  try {
+    await navigator.clipboard.writeText(texto);
+    nota.textContent = 'Endereço copiado. Clique com o botão direito na barra de favoritos, escolha "Adicionar página…" e cole no campo URL.';
+  } catch {
+    area.hidden = false;
+    area.value = texto;
+    area.focus();
+    area.select();
+    nota.textContent = 'O texto abaixo já está selecionado: aperte Ctrl+C para copiar.';
+  }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Prints capturados</title>
+    <link rel="icon" href="icones/icone-32.png" />
+    <link rel="stylesheet" href="resultado.css" />
+  </head>
+  <body>
+    <header class="topo">
+      <div class="titulo">
+        <h1 id="pasta">Carregando…</h1>
+        <p id="detalhes"></p>
+      </div>
+      <div class="acoes">
+        <button id="baixar" class="primario" type="button" disabled>Baixar ZIP</button>
+        <button id="apagar" type="button" disabled>Apagar</button>
+      </div>
+    </header>
+    <p id="aviso" class="aviso" hidden></p>
+    <p id="estado" class="estado" role="status" aria-live="polite"></p>
+    <main id="grade" class="grade"></main>
+    <script type="module" src="resultado.js"></script>
+  </body>
+</html>

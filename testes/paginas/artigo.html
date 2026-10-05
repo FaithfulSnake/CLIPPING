@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <title>Artigo de teste: rolagem</title>
+    <style>
+      html { scroll-behavior: smooth; scroll-snap-type: y mandatory; }
+      body { margin: 0; font: 18px/1.6 sans-serif; }
+      header { position: sticky; top: 0; height: 80px; background: #b91c1c; color: #fff; display: flex; align-items: center; padding: 0 20px; transition: opacity 1s; }
+      .cookies { position: fixed; bottom: 0; left: 0; right: 0; height: 60px; background: #111; color: #fff; padding: 0 20px; display: flex; align-items: center; }
+      p { margin: 0; padding: 0 20px; height: 40px; line-height: 40px; scroll-snap-align: start; }
+      p:nth-child(odd) { background: #e0e7ff; }
+    </style>
+  </head>
+  <body>
+    <header>Cabeçalho grudado (sticky)</header>
+    <main id="conteudo"></main>
+    <div class="cookies">Aviso de cookies fixo no rodapé</div>
+    <script>
+      const conteudo = document.getElementById('conteudo');
+      function adicionar(de, n) {
+        for (let i = de; i < de + n; i++) {
+          const p = document.createElement('p');
+          p.textContent = `Linha ${String(i).padStart(3, '0')}`;
+          conteudo.append(p);
+        }
+      }
+      adicionar(1, 150);
+      // Simula "carregar mais" ao chegar perto do fim (uma vez).
+      let carregou = false;
+      addEventListener('scroll', () => {
+        if (!carregou && innerHeight + scrollY >= document.documentElement.scrollHeight - 50) {
+          carregou = true;
+          setTimeout(() => adicionar(151, 50), 200);
+        }
+      });
+    </script>
+  </body>
+</html>

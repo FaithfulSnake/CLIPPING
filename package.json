@@ -1,0 +1,13 @@
+{
+  "name": "clipping-prints",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Extensão e script que rolam uma página do topo ao fim, tiram um print de cada trecho e exportam um ZIP com os prints numerados.",
+  "type": "module",
+  "scripts": {
+    "gerar": "node ferramentas/gerar-script.mjs",
+    "empacotar": "node ferramentas/empacotar.mjs",
+    "test": "node --test \"testes/*.test.mjs\"",
+    "e2e": "node testes/e2e.cjs"
+  }
+}

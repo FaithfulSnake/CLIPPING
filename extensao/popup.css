@@ -1,0 +1,202 @@
+:root {
+  --fundo: #ffffff;
+  --texto: #1f2937;
+  --suave: #6b7280;
+  --borda: #d1d5db;
+  --campo: #f9fafb;
+  --destaque: #2563eb;
+  --destaque-texto: #ffffff;
+  --aviso-fundo: #fef3c7;
+  --aviso-texto: #92400e;
+  --erro-fundo: #fee2e2;
+  --erro-texto: #991b1b;
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --fundo: #1f2023;
+    --texto: #e5e7eb;
+    --suave: #9ca3af;
+    --borda: #3f4147;
+    --campo: #2a2b2f;
+    --destaque: #3b82f6;
+    --aviso-fundo: #422006;
+    --aviso-texto: #fcd34d;
+    --erro-fundo: #450a0a;
+    --erro-texto: #fca5a5;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  width: 340px;
+  padding: 14px 16px 16px;
+  font: 13px/1.45 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  background: var(--fundo);
+  color: var(--texto);
+}
+
+header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+h1 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.campo {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+
+.campo span {
+  font-weight: 500;
+}
+
+input[type='text'],
+input[type='number'] {
+  font: inherit;
+  color: inherit;
+  background: var(--campo);
+  border: 1px solid var(--borda);
+  border-radius: 6px;
+  padding: 6px 8px;
+}
+
+input[type='text'] {
+  width: 100%;
+}
+
+input[type='number'] {
+  width: 72px;
+  text-align: right;
+}
+
+input:focus-visible,
+button:focus-visible,
+summary:focus-visible {
+  outline: 2px solid var(--destaque);
+  outline-offset: 1px;
+}
+
+button {
+  font: inherit;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--borda);
+  background: var(--campo);
+  color: inherit;
+  cursor: pointer;
+}
+
+button.primario {
+  background: var(--destaque);
+  border-color: var(--destaque);
+  color: var(--destaque-texto);
+  font-weight: 600;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+button.link {
+  width: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--destaque);
+  text-decoration: underline;
+  margin-top: 6px;
+}
+
+details {
+  margin-top: 12px;
+  border-top: 1px solid var(--borda);
+  padding-top: 8px;
+}
+
+summary {
+  cursor: pointer;
+  font-weight: 500;
+  margin-bottom: 6px;
+}
+
+.linha {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 6px 0;
+}
+
+.radios {
+  display: flex;
+  gap: 12px;
+}
+
+.check {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  margin: 8px 0;
+}
+
+.check input {
+  margin-top: 2px;
+}
+
+.aviso {
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--aviso-fundo);
+  color: var(--aviso-texto);
+}
+
+.aviso.erro {
+  background: var(--erro-fundo);
+  color: var(--erro-texto);
+}
+
+.dica {
+  margin: 12px 0 0;
+  color: var(--suave);
+  font-size: 12px;
+}
+
+kbd {
+  font: 11px ui-monospace, monospace;
+  border: 1px solid var(--borda);
+  border-radius: 4px;
+  padding: 0 4px;
+}
+
+.status {
+  margin: 0 0 10px;
+  font-size: 14px;
+}
+
+progress {
+  width: 100%;
+  height: 10px;
+  margin-bottom: 12px;
+  accent-color: var(--destaque);
+}
+
+#tela-progresso button + button {
+  margin-top: 8px;
+}

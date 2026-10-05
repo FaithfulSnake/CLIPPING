@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <title>App com painel interno</title>
+    <style>
+      html, body { margin: 0; height: 100%; overflow: hidden; font: 16px/1.5 sans-serif; }
+      .barra { position: fixed; top: 0; left: 0; right: 0; height: 56px; background: #0f766e; color: #fff; display: flex; align-items: center; padding: 0 16px; }
+      .lateral { position: fixed; top: 56px; bottom: 0; left: 0; width: 200px; background: #f1f5f9; }
+      #leitor { position: absolute; top: 56px; bottom: 0; left: 200px; right: 0; overflow-y: auto; }
+      #leitor h2 { position: sticky; top: 0; margin: 0; height: 48px; line-height: 48px; padding: 0 16px; background: #fde68a; }
+      #leitor div { height: 36px; line-height: 36px; padding: 0 16px; }
+      #leitor div:nth-child(even) { background: #ecfeff; }
+    </style>
+  </head>
+  <body>
+    <div class="barra">Barra do aplicativo (fora da área que rola)</div>
+    <nav class="lateral"></nav>
+    <section id="leitor"><h2>Título grudado do painel</h2></section>
+    <script>
+      const leitor = document.getElementById('leitor');
+      for (let i = 1; i <= 120; i++) {
+        const d = document.createElement('div');
+        d.textContent = `Item ${String(i).padStart(3, '0')}`;
+        leitor.append(d);
+      }
+      leitor.scrollTop = 300; // começa no meio: a captura deve voltar ao topo e depois restaurar
+    </script>
+  </body>
+</html>

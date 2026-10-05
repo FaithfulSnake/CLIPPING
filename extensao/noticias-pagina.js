@@ -1,0 +1,1298 @@
+// Notícias jurídicas – Ferramentas Fanjas.
+// ARQUIVO GERADO por ferramentas/gerar-script.mjs a partir de extensao/noticias-texto.js, unzip.js, zip.js e noticias.js: não edite à mão.
+(() => {
+'use strict';
+// Ferramenta "Notícias jurídicas": lê o texto integral das matérias (.txt),
+// descobre título, autor, link, data e área, e monta o e-mail de cada área no
+// modelo do escritório, com a matéria inteira (sem resumo).
+// Só funções puras: nada de DOM nem de APIs do Chrome (testável no Node).
+
+const AREAS = Object.freeze(['Tributário', 'Empresarial', 'Trabalhista']);
+
+const MESES = ['janeiro', 'fevereiro', 'marco', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+
+// Minúsculas e sem acentos, para comparar palavras.
+function normalizar(texto) {
+  return String(texto ?? '')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase();
+}
+
+// ---------------------------------------------------------------- datas
+
+const RE_DATA = new RegExp(
+  [
+    String.raw`(?<!\d)(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})(?!\d)`,
+    String.raw`(?<!\d)(\d{1,2})(?:º|°|o)?\s+de\s+(${MESES.join('|')})\s+de\s+(\d{4})(?!\d)`,
+    String.raw`(?<!\d)(\d{4})-(\d{2})-(\d{2})(?!\d)`,
+  ].join('|'),
+  'g',
+);
+
+const doisDigitos = (n) => String(n).padStart(2, '0');
+
+function dataValida(a, m, d) {
+  const data = new Date(Date.UTC(a, m - 1, d));
+  if (a < 1990 || a > 2100 || data.getUTCMonth() !== m - 1 || data.getUTCDate() !== d) return '';
+  return `${a}-${doisDigitos(m)}-${doisDigitos(d)}`;
+}
+
+// Primeira data no texto, como "AAAA-MM-DD" ('' se não houver).
+function acharData(texto) {
+  for (const r of normalizar(texto).matchAll(RE_DATA)) {
+    const data = r[1]
+      ? dataValida(+r[3], +r[2], +r[1])
+      : r[4]
+        ? dataValida(+r[6], MESES.indexOf(r[5]) + 1, +r[4])
+        : dataValida(+r[7], +r[8], +r[9]);
+    if (data) return data;
+  }
+  return '';
+}
+
+// "AAAA-MM-DD" → "DD.MM.AAAA" (ou outro separador).
+function formatarData(data, separador = '.') {
+  const [a, m, d] = String(data).split('-');
+  return a && m && d ? [d, m, a].join(separador) : '';
+}
+
+// Linha que é só uma data ("25 de agosto de 2026, 8h05", "Publicado em 25/08/2026 às 10:00").
+function linhaSoDeData(linha) {
+  if (!acharData(linha)) return false;
+  const resto = normalizar(linha)
+    .replace(RE_DATA, ' ')
+    .replace(/\d{1,2}\s*(?:h|:)\s*\d{0,2}(?:min)?/g, ' ')
+    .replace(/\b(publicad[oa]|atualizad[oa]|postad[oa]|em|as|de|segunda|terca|quarta|quinta|sexta|feira|sabado|domingo)\b/g, ' ')
+    .replace(/[\s,.\-–—|•·:()]+/g, '');
+  return resto.length === 0;
+}
+
+// ---------------------------------------------------------------- áreas
+
+// [peso, termo]. Termo terminado em * vale como início de palavra.
+// Peso 3: típico só daquela área; 1: aparece em outras também.
+const TERMOS = {
+  Tributário: [
+    [3, 'tributari*'], [3, 'tributo'], [3, 'tributos'], [3, 'tributacao'], [3, 'icms'], [3, 'iss'], [3, 'issqn'],
+    [3, 'ipi'], [3, 'pis'], [3, 'cofins'], [3, 'irpj'], [3, 'csll'], [3, 'irpf'], [3, 'imposto*'], [3, 'carf'],
+    [3, 'pgfn'], [3, 'receita federal'], [3, 'execucao fiscal'], [3, 'execucoes fiscais'], [3, 'credito tributario'],
+    [3, 'creditos tributarios'], [3, 'divida ativa'], [3, 'itcmd'], [3, 'itbi'], [3, 'iptu'], [3, 'iof'], [3, 'ibs'],
+    [3, 'cbs'], [3, 'simples nacional'], [3, 'fisco'], [3, 'sefaz'], [3, 'contribuinte*'], [3, 'difal'],
+    [3, 'substituicao tributaria'], [3, 'sonegacao'], [3, 'evasao fiscal'], [3, 'auto de infracao'],
+    [3, 'beneficio fiscal'], [3, 'beneficios fiscais'], [3, 'incentivo fiscal'], [3, 'incentivos fiscais'],
+    [3, 'isencao'], [3, 'isencoes'], [3, 'aliquota*'], [3, 'base de calculo'], [3, 'fato gerador'], [3, 'ctn'],
+    [3, 'juros sobre capital proprio'], [3, 'jcp'], [3, 'refis'], [3, 'fazenda nacional'], [3, 'imunidade tributaria'],
+    [2, 'contribuicao previdenciaria'], [2, 'contribuicoes previdenciarias'], [2, 'fazenda publica'],
+    [2, 'repeticao de indebito'], [2, 'arrecadacao'], [2, 'restituicao'],
+    [1, 'fiscal'], [1, 'fiscais'], [1, 'taxa'], [1, 'taxas'], [1, 'parcelamento'], [1, 'compensacao'],
+  ],
+  Empresarial: [
+    [3, 'empresarial'], [3, 'empresariais'], [3, 'societari*'], [3, 'sociedade anonima'], [3, 'sociedades anonimas'],
+    [3, 'sociedade limitada'], [3, 'socio'], [3, 'socios'], [3, 'socia'], [3, 'socias'], [3, 'acionista*'],
+    [3, 'recuperacao judicial'], [3, 'recuperacao extrajudicial'], [3, 'recuperanda'], [3, 'falencia'],
+    [3, 'falencias'], [3, 'falid*'], [3, 'administrador judicial'], [3, 'plano de recuperacao'], [3, 'lei 11.101'],
+    [3, 'cvm'], [3, 'comissao de valores mobiliarios'], [3, 'mercado de capitais'], [3, 'valores mobiliarios'],
+    [3, 'debenture*'], [3, 'm&a'], [3, 'cade'], [3, 'antitruste'], [3, 'concorrencial'], [3, 'propriedade intelectual'],
+    [3, 'propriedade industrial'], [3, 'patente*'], [3, 'inpi'], [3, 'franquia*'], [3, 'franqueado*'], [3, 'startup*'],
+    [3, 'holding*'], [3, 'quotas'], [3, 'apuracao de haveres'], [3, 'dissolucao parcial'],
+    [3, 'desconsideracao da personalidade juridica'], [3, 'junta comercial'], [3, 'contrato social'],
+    [3, 'titulo de credito'], [3, 'titulos de credito'], [3, 'duplicata*'], [3, 'nota promissoria'],
+    [3, 'joint venture'], [3, 'acordo de acionistas'], [3, 'assembleia geral'], [3, 'conselho de administracao'],
+    [2, 'credor'], [2, 'credores'], [2, 'fusao'], [2, 'fusoes'], [2, 'marca'], [2, 'marcas'], [2, 'arbitragem'],
+    [2, 'arbitral'], [2, 'governanca'], [2, 'lgpd'], [2, 'compliance'], [2, 'instituicao financeira'],
+    [2, 'instituicoes financeiras'], [2, 'bancari*'], [2, 'seguradora*'], [2, 'mercantil'], [2, 'comercial'],
+    [1, 'empresa*'], [1, 'contrato*'], [1, 'aquisicao'], [1, 'aquisicoes'], [1, 'cotas'], [1, 'concorrencia'],
+    [1, 'consumidor*'], [1, 'banco*'],
+  ],
+  Trabalhista: [
+    [3, 'trabalhista*'], [3, 'clt'], [3, 'tst'], [3, 'trt*'], [3, 'justica do trabalho'], [3, 'vara do trabalho'],
+    [3, 'empregado*'], [3, 'empregador*'], [3, 'empregaticio'], [3, 'vinculo de emprego'], [3, 'reclamacao trabalhista'],
+    [3, 'hora extra'], [3, 'horas extras'], [3, 'jornada'], [3, 'fgts'], [3, 'verbas rescisorias'], [3, 'aviso previo'],
+    [3, 'insalubridade'], [3, 'periculosidade'], [3, 'adicional noturno'], [3, 'sindicato*'], [3, 'sindical'],
+    [3, 'convencao coletiva'], [3, 'acordo coletivo'], [3, 'negociacao coletiva'], [3, 'terceirizacao'],
+    [3, 'terceirizad*'], [3, 'ministerio publico do trabalho'], [3, 'mpt'], [3, 'assedio moral'], [3, 'ferias'],
+    [3, 'decimo terceiro'], [3, 'trabalhador*'], [3, 'trabalhadora*'], [3, 'pejotizacao'], [3, 'reforma trabalhista'],
+    [3, 'acidente de trabalho'], [3, 'teletrabalho'], [3, 'justa causa'], [3, 'rescisao indireta'],
+    [3, 'estabilidade provisoria'], [3, 'salario*'], [3, 'salarial'],
+    [2, 'reclamante'], [2, 'reclamada'], [2, 'reintegracao'], [2, 'greve'], [2, 'assedio sexual'], [2, 'gestante'],
+    [2, 'licenca-maternidade'],
+    [1, 'trabalho'], [1, 'rescisao'], [1, 'dispensa'], [1, 'demissao'], [1, 'demitid*'], [1, 'estabilidade'],
+    [1, 'emprego'], [1, 'previdenciari*'],
+  ],
+};
+
+const escaparRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const REGRAS = Object.fromEntries(
+  Object.entries(TERMOS).map(([area, termos]) => [
+    area,
+    termos.map(([peso, termo]) => {
+      const prefixo = termo.endsWith('*');
+      const corpo = escaparRegex(prefixo ? termo.slice(0, -1) : termo);
+      return [peso, new RegExp(`(?<![a-z0-9])${corpo}${prefixo ? '[a-z0-9]*' : '(?![a-z0-9])'}`, 'g')];
+    }),
+  ]),
+);
+
+function pontuar(texto, regras, maximo) {
+  let pontos = 0;
+  for (const [peso, regex] of regras) pontos += peso * Math.min(maximo, (texto.match(regex) || []).length);
+  return pontos;
+}
+
+// Área pelo assunto: conta termos típicos no título (vale mais) e no texto.
+// Devolve { area, pontos, duvida } — duvida=true quando a escolha não é clara.
+function classificarArea(titulo, texto) {
+  const t = normalizar(titulo);
+  const c = normalizar(texto);
+  const pontos = Object.fromEntries(AREAS.map((a) => [a, pontuar(t, REGRAS[a], 2) * 3 + pontuar(c, REGRAS[a], 4)]));
+  const [primeira, segunda] = [...AREAS].sort((a, b) => pontos[b] - pontos[a]);
+  const duvida = pontos[primeira] < 6 || pontos[segunda] >= pontos[primeira] * 0.7;
+  return { area: primeira, pontos, duvida };
+}
+
+// "Tributário", "TRABALHISTA", "empresarial" … → nome oficial da área.
+function areaPorNome(nome) {
+  const n = normalizar(nome);
+  if (/tribut/.test(n)) return 'Tributário';
+  if (/trabalh/.test(n)) return 'Trabalhista';
+  if (/empresa/.test(n)) return 'Empresarial';
+  return '';
+}
+
+// Área indicada pelo caminho do arquivo: pasta ou arquivo cujo nome começa
+// pela área ("Tributário/…", "Notícias - Trabalhista/…", "Empresarial 01.txt").
+const NOME_DE_AREA = /^(?:noticias\s*[-–_]?\s*)?(tributari[oa]|trabalhista|empresarial)(?![a-z])/;
+
+function areaPelaOrigem(origem) {
+  for (const parte of String(origem).split(/[\\/]/)) {
+    const area = normalizar(parte.trim()).match(NOME_DE_AREA);
+    if (area) return areaPorNome(area[1]);
+  }
+  return '';
+}
+
+// ---------------------------------------------------------------- matérias
+
+// Um .txt pode trazer várias matérias separadas por uma linha "=====" ou "-----".
+const SEPARADOR = /^\s*(?:={5,}|-{5,}|_{5,}|\*{5,})\s*$/m;
+
+function separarMaterias(texto) {
+  return String(texto)
+    .replace(/\r\n?/g, '\n')
+    .split(SEPARADOR)
+    .map((parte) => parte.trim())
+    .filter(Boolean);
+}
+
+const ROTULO = /^(t[ií]tulo|autor(?:a|es|as)?|por|link(?:\s+de\s+acesso)?|url|fonte|data|[áa]rea)\s*:\s*(.*)$/i;
+const SO_URL = /^<?(https?:\/\/[^\s<>]+?)>?[.,;]?$/i;
+const URL_NO_TEXTO = /https?:\/\/[^\s<>"]+[^\s<>".,;)]/i;
+
+// Linhas soltas que vêm junto ao copiar a página (botões, créditos de imagem).
+const LIXO = new Set(
+  [
+    'compartilhar', 'compartilhe', 'imprimir', 'facebook', 'twitter', 'x', 'linkedin', 'whatsapp', 'telegram', 'e-mail',
+    'email', 'copiar link', 'link copiado', 'salvar', 'ouvir', 'ouca', 'ouvir materia', 'leia tambem', 'leia mais',
+    'spacca', 'freepik', 'reproducao', 'divulgacao', 'publicidade', 'continua apos a publicidade', 'assine', 'newsletter',
+  ].map(normalizar),
+);
+const LIXO_INICIO = /^(revista consultor juridico, \d|topo da pagina$|voltar ao topo$)/;
+
+const FONTES = [
+  [/(^|\.)jota\.info$/, 'JOTA'],
+  [/(^|\.)migalhas\.com\.br$/, 'Migalhas'],
+  [/(^|\.)valor\.globo\.com$/, 'Valor Econômico'],
+];
+
+// Nome do portal para "Por: Fulano (JOTA)"; ConJur e desconhecidos ficam sem.
+function fonteDoLink(link) {
+  try {
+    const host = new URL(link).hostname.toLowerCase();
+    return FONTES.find(([re]) => re.test(host))?.[1] || '';
+  } catch {
+    return '';
+  }
+}
+
+// Endereço sozinho (o usuário colou só o link da matéria), ou ''.
+function linkSozinho(texto) {
+  return String(texto ?? '').trim().match(SO_URL)?.[1] || '';
+}
+
+function linkValido(link) {
+  try {
+    return ['http:', 'https:'].includes(new URL(link).protocol);
+  } catch {
+    return false;
+  }
+}
+
+// Linha curta acima do título, como "OPINIÃO", "Notícias" ou "TRIBUTÁRIO".
+function pareceChapeu(linha) {
+  const palavras = linha.split(/\s+/).length;
+  return palavras <= 2 || (palavras <= 4 && /\p{L}/u.test(linha) && linha === linha.toLocaleUpperCase('pt-BR'));
+}
+
+function limparTitulo(titulo) {
+  return titulo
+    .replace(/\s+[-|–—]\s+(conjur|consultor juridico|jota|migalhas|valor economico)\s*$/i, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// "Por Fulano de Tal" / "Por: Fulano, 25/08/2026" → { autor, data }.
+function autorDaLinha(linha) {
+  const m = linha.match(/^por:?\s+(.+)$/i);
+  if (!m) return null;
+  const [autor, ...resto] = m[1].split(/\s+[|–—]\s+|\s+-\s+|,\s*(?=\d)/);
+  const nome = autor.trim();
+  if (!/^\p{Lu}/u.test(nome) || nome.length > 100 || /[.!?;:]$/.test(nome) || nome.split(/\s+/).length > 15) return null;
+  return { autor: nome, data: acharData(resto.join(' ')) };
+}
+
+// Lê uma matéria em texto livre. Aceita rótulos opcionais no começo
+// ("Título:", "Autor:", "Link:", "Data:", "Área:"); sem eles, usa a 1ª linha
+// como título, "Por …" como autor, e a linha que for só um endereço como link.
+function interpretarMateria(textoBruto, origem = '') {
+  const linhas = String(textoBruto)
+    .replace(/\r\n?/g, '\n')
+    .replace(/ /g, ' ')
+    .split('\n')
+    .map((l) => l.trim());
+  const usada = linhas.map(() => false);
+  const m = { titulo: '', autor: '', link: '', data: '', areaRotulo: '' };
+
+  const aplicarRotulo = (linha) => {
+    const r = linha.match(ROTULO);
+    if (!r) return false;
+    const chave = normalizar(r[1]);
+    const valor = r[2].trim();
+    if (chave === 'titulo') m.titulo ||= limparTitulo(valor);
+    else if (chave.startsWith('autor') || chave === 'por') m.autor ||= valor;
+    else if (chave.startsWith('link') || chave === 'url' || chave === 'fonte') m.link ||= valor.match(URL_NO_TEXTO)?.[0] || '';
+    else if (chave === 'data') m.data ||= acharData(valor);
+    else if (chave === 'area') m.areaRotulo ||= areaPorNome(valor);
+    return true;
+  };
+
+  const naoVazias = linhas.flatMap((l, i) => (l ? [[l, i]] : []));
+
+  // Cabeçalho: as primeiras linhas curtas, antes do primeiro parágrafo longo.
+  const cabecalho = [];
+  for (const par of naoVazias.slice(0, 8)) {
+    if (par[0].length > 200) break;
+    cabecalho.push(par);
+  }
+  const tipos = cabecalho.map(([linha]) =>
+    ROTULO.test(linha) ? 'rotulo' : SO_URL.test(linha) ? 'url' : autorDaLinha(linha) ? 'autor' : linhaSoDeData(linha) ? 'data' : 'texto',
+  );
+  // Título: a 1ª linha de texto que não pareça "chapéu" (OPINIÃO, Notícias…);
+  // os chapéus antes dele saem do texto.
+  const textos = tipos.flatMap((t, k) => (t === 'texto' ? [k] : []));
+  const rotulado = cabecalho.some(([linha], k) => tipos[k] === 'rotulo' && /^t[ií]tulo\s*:/i.test(linha));
+  const indiceTitulo = rotulado ? -1 : (textos.find((k) => !pareceChapeu(cabecalho[k][0])) ?? textos[0] ?? -1);
+
+  for (const [k, [linha, i]] of cabecalho.entries()) {
+    const tipo = tipos[k];
+    if (tipo === 'rotulo') {
+      aplicarRotulo(linha);
+      usada[i] = true;
+    } else if (tipo === 'url') {
+      m.link ||= linha.match(SO_URL)[1];
+      usada[i] = true;
+    } else if (tipo === 'autor' && !m.autor) {
+      const autor = autorDaLinha(linha);
+      m.autor = autor.autor;
+      m.data ||= autor.data;
+      usada[i] = true;
+    } else if (tipo === 'data') {
+      m.data ||= acharData(linha);
+      usada[i] = true;
+    } else if (tipo === 'texto' && k < indiceTitulo) {
+      m.areaRotulo ||= areaPelaOrigem(linha);
+      usada[i] = true;
+    } else if (k === indiceTitulo) {
+      m.titulo = limparTitulo(linha);
+      usada[i] = true;
+    }
+  }
+
+  // Rodapé: link colado no fim ("Link de Acesso: …" ou só o endereço).
+  for (const [linha, i] of naoVazias.slice(-4)) {
+    if (usada[i]) continue;
+    const url = linha.match(SO_URL);
+    if (url) {
+      m.link ||= url[1];
+      usada[i] = true;
+    } else if (/^(link(\s+de\s+acesso)?|url|fonte)\s*:/i.test(linha) && aplicarRotulo(linha)) {
+      usada[i] = true;
+    }
+  }
+
+  // Corpo: o resto, sem lixo de página e sem linhas em branco repetidas.
+  const corpo = [];
+  for (const [i, linha] of linhas.entries()) {
+    if (usada[i] || LIXO.has(normalizar(linha)) || LIXO_INICIO.test(normalizar(linha))) continue;
+    if (!linha && (!corpo.length || !corpo.at(-1))) continue;
+    corpo.push(linha);
+  }
+  while (corpo.length && !corpo.at(-1)) corpo.pop();
+  const texto = corpo.join('\n');
+
+  const fonte = fonteDoLink(m.link);
+  if (m.autor && fonte && !m.autor.includes('(')) m.autor = `${m.autor} (${fonte})`;
+
+  const automatica = classificarArea(m.titulo, texto);
+  const areaFixa = m.areaRotulo || areaPelaOrigem(origem);
+  return {
+    titulo: m.titulo,
+    autor: m.autor,
+    link: m.link,
+    data: m.data,
+    texto,
+    area: areaFixa || automatica.area,
+    areaConferir: !areaFixa && automatica.duvida,
+    origem,
+  };
+}
+
+function contarPalavras(texto) {
+  return (String(texto).match(/\S+/g) || []).length;
+}
+
+// Parágrafos do texto integral: blocos separados por linha em branco; dentro
+// de um bloco, cada quebra de linha é mantida. Sem linhas em branco, cada
+// linha é um parágrafo. Devolve [[linha, linha…], …].
+function paragrafos(texto) {
+  const blocos = [];
+  let atual = [];
+  for (const linha of String(texto).replace(/\r\n?/g, '\n').split('\n')) {
+    const l = linha.trim();
+    if (l) atual.push(l);
+    else if (atual.length) {
+      blocos.push(atual);
+      atual = [];
+    }
+  }
+  if (atual.length) blocos.push(atual);
+  return blocos.length > 1 ? blocos : blocos.flatMap((b) => b.map((l) => [l]));
+}
+
+// Data mais frequente entre as matérias (empate: a mais recente).
+function dataPredominante(materias) {
+  const contagem = new Map();
+  for (const { data } of materias) if (data) contagem.set(data, (contagem.get(data) || 0) + 1);
+  return [...contagem].sort((a, b) => b[1] - a[1] || b[0].localeCompare(a[0]))[0]?.[0] || '';
+}
+
+// ---------------------------------------------------------------- e-mail
+
+function assunto(area, data) {
+  return `Notícias - ${area} - ${formatarData(data, '.')}`;
+}
+
+function nomeArquivo(area, data) {
+  return `EMAIL_NOTICIAS_${normalizar(area).toUpperCase()}_${formatarData(data, '-')}.html`;
+}
+
+const esc = (s) =>
+  String(s ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+
+// HTML do e-mail de uma área, no modelo do escritório (estilos inline, que o
+// Outlook mantém). Cada parágrafo vira um <p> próprio: o Outlook ignora
+// "white-space:pre-line" e juntaria o texto todo num bloco só.
+function montarEmail({ area, data, materias }) {
+  const h = [
+    '<meta charset="utf-8">',
+    `<div style="font-family:'Calibri Light',Calibri,sans-serif; font-size:11pt; color:#000000; line-height:1.35;">`,
+    '',
+    `<p style="font-family:Calibri,sans-serif; font-weight:bold; margin:0 0 12pt 0;">${esc(assunto(area, data))}</p>`,
+    '',
+    '<p style="font-family:Calibri,sans-serif; font-weight:bold; margin:0 0 4pt 0;">Sumário</p>',
+  ];
+  materias.forEach((m, i) => {
+    h.push(`<p style="margin:0 0 2pt 0;"><a href="#materia-${i + 1}" style="color:#000000; text-decoration:none;">${i + 1}. ${esc(m.titulo)}</a></p>`);
+  });
+  materias.forEach((m, i) => {
+    const n = i + 1;
+    h.push('', `<!-- ===================== MATÉRIA ${n} ===================== -->`, `<div id="materia-${n}">`);
+    h.push(
+      `<p style="font-family:Calibri,sans-serif; font-weight:bold; text-align:center; margin:18pt 0 ${m.autor ? 4 : 12}pt 0;"><a name="materia-${n}"></a>${esc(m.titulo)}</p>`,
+    );
+    if (m.autor) h.push(`<p style="text-align:center; margin:0 0 12pt 0;">Por: ${esc(m.autor)}</p>`);
+    for (const p of paragrafos(m.texto)) h.push(`<p style="text-align:justify; margin:0 0 8pt 0;">${p.map(esc).join('<br>')}</p>`);
+    if (linkValido(m.link)) {
+      h.push(`<p style="margin:12pt 0 18pt 0;"><strong>Link de Acesso:</strong> <a href="${esc(m.link)}">${esc(m.link)}</a></p>`);
+    }
+    h.push('</div>', '<p style="margin:0 0 10pt 0;">&nbsp;</p>');
+  });
+  h.push('', '</div>', '');
+  return h.join('\n');
+}
+
+// Versão em texto simples (vai junto na área de transferência).
+function montarTexto({ area, data, materias }) {
+  const partes = [assunto(area, data), '', 'Sumário', ...materias.map((m, i) => `${i + 1}. ${m.titulo}`)];
+  for (const m of materias) {
+    partes.push('', '', m.titulo);
+    if (m.autor) partes.push(`Por: ${m.autor}`);
+    partes.push('', ...paragrafos(m.texto).map((p) => `${p.join('\n')}\n`));
+    if (linkValido(m.link)) partes.push(`Link de Acesso: ${m.link}`);
+  }
+  return `${partes.join('\n').trim()}\n`;
+}
+
+// Lê os arquivos de um .zip (sem compressão ou "deflate", os tipos que o
+// Windows e os programas comuns usam) e decodifica textos .txt.
+
+// Página de código 850, usada pelo Windows em português para nomes dentro do
+// ZIP quando o arquivo não marca os nomes como UTF-8.
+const CP850 =
+  'ÇüéâäàåçêëèïîìÄÅÉæÆôöòûùÿÖÜø£Ø×ƒáíóúñÑªº¿®¬½¼¡«»░▒▓│┤ÁÂÀ©╣║╗╝¢¥┐└┴┬├─┼ãÃ╚╔╩╦╠═╬¤ðÐÊËÈıÍÎÏ┘┌█▄¦Ì▀ÓßÔÒõÕµþÞÚÛÙýÝ¯´­±‗¾¶§÷¸°¨·¹³²■ ';
+
+function nomeDoZip(bytes, utf8) {
+  if (!utf8) {
+    try {
+      return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    } catch {
+      return Array.from(bytes, (b) => (b < 128 ? String.fromCharCode(b) : CP850[b - 128])).join('');
+    }
+  }
+  return new TextDecoder().decode(bytes);
+}
+
+async function descomprimir(dados) {
+  const fluxo = new Blob([dados]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+  return new Uint8Array(await new Response(fluxo).arrayBuffer());
+}
+
+// Devolve [{ nome, dados: Uint8Array }] na ordem em que estão no ZIP.
+async function lerZip(buffer) {
+  const bytes = new Uint8Array(buffer);
+  const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  let fim = -1;
+  for (let i = bytes.length - 22; i >= Math.max(0, bytes.length - 22 - 0xffff); i--) {
+    if (dv.getUint32(i, true) === 0x06054b50) {
+      fim = i;
+      break;
+    }
+  }
+  if (fim < 0) throw new Error('o arquivo não é um ZIP válido');
+
+  const total = dv.getUint16(fim + 10, true);
+  let p = dv.getUint32(fim + 16, true);
+  const arquivos = [];
+  for (let n = 0; n < total; n++) {
+    if (dv.getUint32(p, true) !== 0x02014b50) throw new Error('o ZIP está corrompido');
+    const flags = dv.getUint16(p + 8, true);
+    const metodo = dv.getUint16(p + 10, true);
+    const tamanho = dv.getUint32(p + 20, true);
+    const tamNome = dv.getUint16(p + 28, true);
+    const local = dv.getUint32(p + 42, true);
+    const nome = nomeDoZip(bytes.subarray(p + 46, p + 46 + tamNome), flags & 0x0800);
+    p += 46 + tamNome + dv.getUint16(p + 30, true) + dv.getUint16(p + 32, true);
+    if (nome.endsWith('/')) continue;
+    if (flags & 1) throw new Error(`"${nome}" está protegido por senha`);
+    const inicio = local + 30 + dv.getUint16(local + 26, true) + dv.getUint16(local + 28, true);
+    const conteudo = bytes.subarray(inicio, inicio + tamanho);
+    if (metodo === 0) arquivos.push({ nome, dados: conteudo.slice() });
+    else if (metodo === 8) arquivos.push({ nome, dados: await descomprimir(conteudo) });
+    else throw new Error(`"${nome}" usa um tipo de compressão não suportado`);
+  }
+  return arquivos;
+}
+
+// Texto de um .txt: UTF-8 (com ou sem BOM), UTF-16 do Bloco de Notas
+// ("Unicode") ou, se não for UTF-8 válido, ANSI do Windows (1252).
+function decodificarTexto(bytes) {
+  if (bytes[0] === 0xff && bytes[1] === 0xfe) return new TextDecoder('utf-16le').decode(bytes.subarray(2));
+  if (bytes[0] === 0xfe && bytes[1] === 0xff) return new TextDecoder('utf-16be').decode(bytes.subarray(2));
+  const inicio = bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf ? 3 : 0;
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes.subarray(inicio));
+  } catch {
+    return new TextDecoder('windows-1252').decode(bytes);
+  }
+}
+
+// Gera um arquivo ZIP sem compressão ("stored"). PNG e JPEG já são
+// comprimidos, então comprimir de novo só gastaria tempo. Os nomes vão em
+// UTF-8, então acentos no nome da pasta aparecem certos no Windows.
+
+const TABELA_CRC = new Uint32Array(256).map((_, n) => {
+  let c = n;
+  for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+  return c >>> 0;
+});
+
+function crc32(bytes) {
+  let c = 0xffffffff;
+  for (let i = 0; i < bytes.length; i++) c = TABELA_CRC[(c ^ bytes[i]) & 0xff] ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
+}
+
+function dataHoraDos(d) {
+  const ano = Math.min(Math.max(d.getFullYear(), 1980), 2107);
+  return {
+    hora: (d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1),
+    data: ((ano - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate(),
+  };
+}
+
+// entradas: [{ nome: 'pasta/' }, { nome: 'pasta/001.png', dados: Uint8Array }, ...]
+// Nomes terminados em "/" são pastas. Devolve um Blob.
+function criarZip(entradas, quando = new Date()) {
+  if (entradas.length > 0xffff) throw new Error('Arquivos demais para um único ZIP.');
+  const { hora, data } = dataHoraDos(quando);
+  const utf8 = new TextEncoder();
+  const locais = [];
+  const centrais = [];
+  let deslocamento = 0;
+
+  for (const entrada of entradas) {
+    const nome = utf8.encode(entrada.nome);
+    const dados = entrada.dados || new Uint8Array(0);
+    const ehPasta = entrada.nome.endsWith('/');
+    const crc = crc32(dados);
+    if (deslocamento + 30 + nome.length + dados.length > 0xffffffff) {
+      throw new Error('O ZIP passaria de 4 GB. Diminua o limite de prints ou use JPEG.');
+    }
+
+    const local = new DataView(new ArrayBuffer(30));
+    local.setUint32(0, 0x04034b50, true);
+    local.setUint16(4, 20, true); // versão necessária
+    local.setUint16(6, 0x0800, true); // nomes em UTF-8
+    local.setUint16(8, 0, true); // sem compressão
+    local.setUint16(10, hora, true);
+    local.setUint16(12, data, true);
+    local.setUint32(14, crc, true);
+    local.setUint32(18, dados.length, true);
+    local.setUint32(22, dados.length, true);
+    local.setUint16(26, nome.length, true);
+    local.setUint16(28, 0, true);
+    locais.push(local, nome, dados);
+
+    const central = new DataView(new ArrayBuffer(46));
+    central.setUint32(0, 0x02014b50, true);
+    central.setUint16(4, 20, true); // criado por: MS-DOS, versão 2.0
+    central.setUint16(6, 20, true);
+    central.setUint16(8, 0x0800, true);
+    central.setUint16(10, 0, true);
+    central.setUint16(12, hora, true);
+    central.setUint16(14, data, true);
+    central.setUint32(16, crc, true);
+    central.setUint32(20, dados.length, true);
+    central.setUint32(24, dados.length, true);
+    central.setUint16(28, nome.length, true);
+    central.setUint32(38, ehPasta ? 0x10 : 0, true); // atributo de pasta do DOS
+    central.setUint32(42, deslocamento, true);
+    centrais.push(central, nome);
+
+    deslocamento += 30 + nome.length + dados.length;
+  }
+
+  const tamanhoCentral = centrais.reduce((soma, parte) => soma + parte.byteLength, 0);
+  const fim = new DataView(new ArrayBuffer(22));
+  fim.setUint32(0, 0x06054b50, true);
+  fim.setUint16(8, entradas.length, true);
+  fim.setUint16(10, entradas.length, true);
+  fim.setUint32(12, tamanhoCentral, true);
+  fim.setUint32(16, deslocamento, true);
+
+  return new Blob([...locais, ...centrais, fim], { type: 'application/zip' });
+}
+
+
+const $ = (id) => document.getElementById(id);
+const FORA = 'excluir';
+
+// Guarda no armazenamento da extensão (ou do navegador, fora dela).
+const armazenamento = {
+  async ler(chave) {
+    try {
+      if (globalThis.chrome?.storage?.local) return (await chrome.storage.local.get(chave))[chave];
+      return JSON.parse(localStorage.getItem(chave) ?? 'null') ?? undefined;
+    } catch {
+      return undefined;
+    }
+  },
+  async gravar(chave, valor) {
+    try {
+      if (globalThis.chrome?.storage?.local) await chrome.storage.local.set({ [chave]: valor });
+      else localStorage.setItem(chave, JSON.stringify(valor));
+    } catch {
+      // sem armazenamento: a página continua funcionando, só não lembra depois
+    }
+  },
+};
+
+const estado = { materias: [], datas: {} };
+let proximoId = 1;
+
+const hoje = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
+let gravacao = null;
+function salvar() {
+  clearTimeout(gravacao);
+  gravacao = setTimeout(() => armazenamento.gravar('noticias', estado), 300);
+}
+
+function avisar(texto) {
+  const el = $('aviso');
+  el.textContent = texto;
+  el.hidden = false;
+  clearTimeout(avisar.tempo);
+  avisar.tempo = setTimeout(() => (el.hidden = true), Math.max(4000, texto.length * 60));
+}
+
+// Qualquer falha aparece na tela, em vez de a página parar sem explicação.
+addEventListener('error', (ev) => avisar(`Erro: ${ev.message}`));
+addEventListener('unhandledrejection', (ev) => avisar(`Erro: ${ev.reason?.message || ev.reason}`));
+
+// ---------------------------------------------------------------- dados
+
+const daArea = (area) => estado.materias.filter((m) => m.area === area);
+const dataDaArea = (area) => estado.datas[area] || dataPredominante(daArea(area)) || hoje();
+const chaveDuplicada = (m) => (linkValido(m.link) ? m.link.replace(/[#?].*$/, '').replace(/\/+$/, '') : normalizar(m.titulo));
+
+function adicionarTextos(textos) {
+  const existentes = new Set(estado.materias.map(chaveDuplicada));
+  const novas = [];
+  let repetidas = 0;
+  for (const { origem, texto } of textos) {
+    for (const parte of separarMaterias(texto)) {
+      const m = interpretarMateria(parte, origem);
+      const chave = chaveDuplicada(m);
+      if (chave && existentes.has(chave)) {
+        repetidas++;
+        continue;
+      }
+      existentes.add(chave);
+      novas.push({ id: proximoId++, ...m });
+    }
+  }
+  estado.materias.push(...novas);
+  salvar();
+  desenharLista();
+  atualizarEmails();
+  return { novas, repetidas };
+}
+
+function relatar({ novas, repetidas }, ignorados = []) {
+  const partes = [];
+  if (novas.length) {
+    const porArea = AREAS.map((a) => [a, novas.filter((m) => m.area === a).length])
+      .filter(([, n]) => n)
+      .map(([a, n]) => `${n} ${a}`);
+    partes.push(`${novas.length} ${novas.length === 1 ? 'matéria adicionada' : 'matérias adicionadas'} (${porArea.join(', ')}).`);
+  } else {
+    partes.push('Nenhuma matéria nova.');
+  }
+  if (repetidas) partes.push(`${repetidas} já estava${repetidas === 1 ? '' : 'm'} na lista.`);
+  if (ignorados.length) partes.push(`Ignorados (não são .txt nem .zip): ${ignorados.join(', ')}.`);
+  $('relatorio').textContent = partes.join(' ');
+}
+
+async function lerArquivos(arquivos) {
+  const textos = [];
+  const ignorados = [];
+  for (const { arquivo, caminho } of arquivos) {
+    const bytes = new Uint8Array(await arquivo.arrayBuffer());
+    const ehZip = /\.zip$/i.test(caminho) || (bytes[0] === 0x50 && bytes[1] === 0x4b && bytes[2] === 3);
+    if (ehZip) {
+      try {
+        for (const item of await lerZip(bytes)) {
+          if (/\.txt$/i.test(item.nome) && !/(^|\/)(__MACOSX\/|\.)/.test(item.nome)) {
+            textos.push({ origem: `${caminho}/${item.nome}`, texto: decodificarTexto(item.dados) });
+          }
+        }
+      } catch (e) {
+        ignorados.push(`${caminho} (${e.message})`);
+      }
+    } else if (/\.(txt|text)$/i.test(caminho) || arquivo.type === 'text/plain') {
+      textos.push({ origem: caminho, texto: decodificarTexto(bytes) });
+    } else {
+      ignorados.push(caminho);
+    }
+  }
+  textos.sort((a, b) => a.origem.localeCompare(b.origem, 'pt-BR', { numeric: true }));
+  const resultado = adicionarTextos(textos);
+  relatar(resultado, ignorados);
+  await completarPelasAbas(resultado.novas);
+}
+
+// Pastas arrastadas: percorre tudo o que há dentro.
+async function arquivosDoArrasto(dataTransfer) {
+  const entradas = [...dataTransfer.items].map((i) => i.webkitGetAsEntry?.()).filter(Boolean);
+  if (!entradas.length) return [...dataTransfer.files].map((arquivo) => ({ arquivo, caminho: arquivo.name }));
+  const lista = [];
+  const visitar = async (entrada, caminho) => {
+    if (entrada.isFile) {
+      const arquivo = await new Promise((ok, falha) => entrada.file(ok, falha));
+      lista.push({ arquivo, caminho: `${caminho}${entrada.name}` });
+    } else if (entrada.isDirectory) {
+      const leitor = entrada.createReader();
+      for (;;) {
+        const lote = await new Promise((ok, falha) => leitor.readEntries(ok, falha));
+        if (!lote.length) break;
+        for (const filho of lote) await visitar(filho, `${caminho}${entrada.name}/`);
+      }
+    }
+  };
+  for (const entrada of entradas) await visitar(entrada, '');
+  return lista;
+}
+
+// ---------------------------------------------------------------- colar
+
+// Blocos que não fazem parte do texto da matéria (menus, botões, imagens, "Leia também").
+const PULAR = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE', 'BUTTON', 'NAV', 'ASIDE', 'FIGURE', 'FIGCAPTION', 'IMG', 'PICTURE', 'SVG', 'VIDEO', 'AUDIO', 'IFRAME', 'FORM', 'INPUT', 'SELECT', 'TEXTAREA', 'HEAD']);
+const PARAGRAFO = new Set(['P', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'LI', 'BLOCKQUOTE', 'PRE', 'TR', 'DT', 'DD']);
+const BLOCO = new Set([...PARAGRAFO, 'DIV', 'SECTION', 'ARTICLE', 'HEADER', 'FOOTER', 'MAIN', 'UL', 'OL', 'TABLE', 'TBODY', 'THEAD', 'DL', 'HR', 'ADDRESS', 'CENTER']);
+
+// HTML copiado do site → texto com um parágrafo por bloco (linha em branco entre eles).
+function textoDeHtml(html) {
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const linhas = [];
+  let atual = '';
+  const quebrar = (paragrafo) => {
+    const linha = atual.replace(/\s+/g, ' ').trim();
+    if (linha) linhas.push(linha);
+    atual = '';
+    if (paragrafo && linhas.length && linhas.at(-1) !== '') linhas.push('');
+  };
+  const visitar = (no) => {
+    if (no.nodeType === Node.TEXT_NODE) {
+      atual += no.nodeValue;
+      return;
+    }
+    if (no.nodeType !== Node.ELEMENT_NODE) return;
+    const tag = no.tagName.toUpperCase();
+    if (PULAR.has(tag) || no.hidden || no.getAttribute('aria-hidden') === 'true') return;
+    if (tag === 'BR') return quebrar(false);
+    const bloco = BLOCO.has(tag);
+    const paragrafo = PARAGRAFO.has(tag);
+    if (bloco) quebrar(paragrafo);
+    if ((tag === 'TD' || tag === 'TH') && atual.trim()) atual += ' | ';
+    for (const filho of no.childNodes) visitar(filho);
+    if (bloco) quebrar(paragrafo);
+  };
+  visitar(doc.body);
+  quebrar(false);
+  while (linhas.at(-1) === '') linhas.pop();
+  return linhas.join('\n');
+}
+
+// Prefere o HTML (separa melhor os parágrafos e tira imagens e menus), a não
+// ser que ele perca texto em relação à versão simples.
+function textoDoColado(texto, html) {
+  if (!html) return texto;
+  let convertido = '';
+  try {
+    convertido = textoDeHtml(html);
+  } catch {
+    return texto;
+  }
+  const tamanho = (t) => t.replace(/\s+/g, '').length;
+  return tamanho(convertido) >= tamanho(texto) * 0.6 ? convertido : texto;
+}
+
+function aplicarLink(m, url) {
+  m.link = url;
+  const fonte = fonteDoLink(url);
+  if (m.autor && fonte && !m.autor.includes('(')) m.autor = `${m.autor} (${fonte})`;
+}
+
+// Link pela aba aberta da matéria: a aba cujo título contém o título copiado.
+async function linkPelasAbas(titulo) {
+  const alvo = normalizar(titulo).replace(/\s+/g, ' ').trim();
+  if (alvo.length < 15 || !globalThis.chrome?.tabs?.query) return '';
+  let abas = [];
+  try {
+    abas = await chrome.tabs.query({});
+  } catch {
+    return '';
+  }
+  const achadas = abas.filter((a) => /^https?:/i.test(a.url || '') && normalizar(a.title).replace(/\s+/g, ' ').includes(alvo));
+  achadas.sort((a, b) => (b.lastAccessed || 0) - (a.lastAccessed || 0));
+  return achadas[0]?.url.replace(/#.*$/, '') || '';
+}
+
+async function completarPelasAbas(materias) {
+  let mudou = false;
+  for (const m of materias) {
+    if (linkValido(m.link)) continue;
+    const url = await linkPelasAbas(m.titulo);
+    if (!url) continue;
+    aplicarLink(m, url);
+    mudou = true;
+  }
+  if (!mudou) return;
+  salvar();
+  desenharLista();
+  atualizarEmails();
+}
+
+// Link colado sozinho: vai para a matéria mais recente que ainda não tem link.
+function colocarLink(url) {
+  const alvo = [...estado.materias].sort((a, b) => b.id - a.id).find((m) => !linkValido(m.link));
+  if (!alvo) {
+    avisar(
+      estado.materias.length
+        ? 'Todas as matérias já têm link. Para trocar, cole no campo “Link” da matéria.'
+        : 'Cole primeiro o texto da matéria; o link vem depois.',
+    );
+    return;
+  }
+  aplicarLink(alvo, url);
+  salvar();
+  desenharLista();
+  atualizarEmails();
+  destacar(alvo.id);
+  avisar(`Link colocado na matéria ${estado.materias.indexOf(alvo) + 1}: ${alvo.titulo || '(sem título)'}`);
+}
+
+async function receberColagem({ texto = '', html = '', arquivos = [] }) {
+  if (arquivos.length) {
+    await lerArquivos(arquivos.map((arquivo) => ({ arquivo, caminho: arquivo.name })));
+    return;
+  }
+  const link = linkSozinho(texto);
+  if (link) {
+    colocarLink(link);
+    return;
+  }
+  const conteudo = textoDoColado(texto, html);
+  if (!conteudo.trim()) {
+    avisar('A área de transferência está vazia. Copie a matéria no site (Ctrl+C) e tente de novo.');
+    return;
+  }
+  const resultado = adicionarTextos([{ origem: '', texto: conteudo }]);
+  relatar(resultado);
+  if (!resultado.novas.length) return;
+  await completarPelasAbas(resultado.novas);
+  const m = resultado.novas.at(-1);
+  destacar(m.id);
+  avisar(
+    `Matéria adicionada em ${m.area === FORA ? 'Não incluir' : m.area}: ${m.titulo || '(sem título)'}.` +
+      (linkValido(m.link) ? '' : ' Falta o link: copie o endereço da página e cole aqui.'),
+  );
+}
+
+async function colarDoBotao() {
+  try {
+    let texto = '';
+    let html = '';
+    for (const item of await navigator.clipboard.read()) {
+      if (item.types.includes('text/html')) html = await (await item.getType('text/html')).text();
+      if (item.types.includes('text/plain')) texto = await (await item.getType('text/plain')).text();
+    }
+    await receberColagem({ texto, html });
+  } catch {
+    $('zona-colar').focus();
+    avisar('O navegador não deixou ler a área de transferência. Clique na área tracejada e aperte Ctrl+V.');
+  }
+}
+
+// ---------------------------------------------------------------- lista
+
+function criar(tag, props = {}, filhos = []) {
+  const el = document.createElement(tag);
+  for (const [chave, valor] of Object.entries(props)) {
+    if (chave === 'class') el.className = valor;
+    else if (chave in el) el[chave] = valor;
+    else el.setAttribute(chave, valor);
+  }
+  el.append(...filhos);
+  return el;
+}
+
+function avisosDe(m) {
+  const avisos = [];
+  if (!m.titulo.trim()) avisos.push('sem título');
+  if (!m.link.trim()) avisos.push('sem link');
+  else if (!linkValido(m.link)) avisos.push('link inválido');
+  if (m.areaConferir && m.area !== FORA) avisos.push('confira a área');
+  if (m.area !== FORA && m.data && m.data !== dataDaArea(m.area)) {
+    avisos.push(`matéria de ${formatarData(m.data, '/')}, e-mail de ${formatarData(dataDaArea(m.area), '/')}`);
+  }
+  if (contarPalavras(m.texto) < 80) avisos.push('texto curto: confira se é a matéria inteira');
+  return avisos;
+}
+
+function atualizarAvisos() {
+  for (const m of estado.materias) {
+    const el = document.querySelector(`[data-id="${m.id}"] .avisos`);
+    if (!el) continue;
+    const avisos = avisosDe(m);
+    el.replaceChildren(...avisos.map((a) => criar('span', { class: 'chip', textContent: a })));
+    el.hidden = !avisos.length;
+  }
+}
+
+function mover(id, delta) {
+  const i = estado.materias.findIndex((m) => m.id === id);
+  const j = i + delta;
+  if (i < 0 || j < 0 || j >= estado.materias.length) return;
+  [estado.materias[i], estado.materias[j]] = [estado.materias[j], estado.materias[i]];
+  salvar();
+  desenharLista();
+  atualizarEmails();
+  document.querySelector(`[data-id="${id}"] [data-mover="${delta}"]`)?.focus();
+}
+
+function cartao(m, posicao) {
+  const campo = (rotulo, entrada, classe = '') => criar('label', { class: `campo ${classe}` }, [criar('span', { textContent: rotulo }), entrada]);
+  const editar = (chave) => (ev) => {
+    m[chave] = ev.target.value;
+    salvar();
+    atualizarAvisos();
+    atualizarEmails();
+  };
+
+  const area = criar('select', { class: 'area', 'aria-label': 'Área' }, [
+    ...AREAS.map((a) => criar('option', { value: a, textContent: a })),
+    criar('option', { value: FORA, textContent: 'Não incluir' }),
+  ]);
+  area.value = m.area;
+  area.addEventListener('change', () => {
+    m.area = area.value;
+    m.areaConferir = false;
+    salvar();
+    desenharLista();
+    atualizarEmails();
+  });
+
+  const titulo = criar('input', { type: 'text', value: m.titulo, placeholder: 'Título da matéria' });
+  titulo.addEventListener('input', editar('titulo'));
+  const autor = criar('input', { type: 'text', value: m.autor, placeholder: 'sem autor: a linha “Por:” não aparece' });
+  autor.addEventListener('input', editar('autor'));
+  const link = criar('input', { type: 'url', value: m.link, placeholder: 'https://…', spellcheck: false });
+  link.addEventListener('input', editar('link'));
+  const data = criar('input', { type: 'date', value: m.data });
+  data.addEventListener('input', editar('data'));
+  const texto = criar('textarea', { value: m.texto, rows: 14, spellcheck: false });
+  const resumoTexto = criar('summary', { textContent: `Texto integral · ${contarPalavras(m.texto)} palavras` });
+  texto.addEventListener('input', (ev) => {
+    editar('texto')(ev);
+    resumoTexto.textContent = `Texto integral · ${contarPalavras(m.texto)} palavras`;
+  });
+
+  const botao = (rotulo, titulo, acao, extra = {}) => {
+    const b = criar('button', { type: 'button', textContent: rotulo, title: titulo, 'aria-label': titulo, ...extra });
+    b.addEventListener('click', acao);
+    return b;
+  };
+
+  return criar('li', { class: `materia${m.area === FORA ? ' fora' : ''}`, 'data-id': m.id, 'data-area': m.area }, [
+    criar('div', { class: 'cabeca' }, [
+      criar('span', { class: 'numero', textContent: String(posicao) }),
+      area,
+      criar('div', { class: 'acoes' }, [
+        botao('↑', 'Subir', () => mover(m.id, -1), { 'data-mover': '-1', disabled: posicao === 1 }),
+        botao('↓', 'Descer', () => mover(m.id, 1), { 'data-mover': '1', disabled: posicao === estado.materias.length }),
+        botao('Remover', 'Remover esta matéria', () => {
+          estado.materias = estado.materias.filter((x) => x.id !== m.id);
+          salvar();
+          desenharLista();
+          atualizarEmails();
+        }),
+      ]),
+    ]),
+    campo('Título', titulo, 'largo'),
+    criar('div', { class: 'linha' }, [campo('Por', autor), campo('Link', link, 'link'), campo('Data', data, 'data')]),
+    criar('p', { class: 'avisos' }),
+    criar('details', { class: 'texto' }, [resumoTexto, texto, criar('p', { class: 'suave origem', textContent: m.origem ? `Arquivo: ${m.origem}` : 'Texto colado' })]),
+  ]);
+}
+
+function desenharLista() {
+  const lista = $('lista');
+  lista.replaceChildren(...estado.materias.map((m, i) => cartao(m, i + 1)));
+  $('vazio').hidden = estado.materias.length > 0;
+  const contagem = AREAS.map((a) => [a, daArea(a).length]).filter(([, n]) => n);
+  const fora = daArea(FORA).length;
+  $('resumo-lista').textContent = estado.materias.length
+    ? `${contagem.map(([a, n]) => `${a}: ${n}`).join(' · ')}${fora ? ` · fora do e-mail: ${fora}` : ''}`
+    : '';
+  atualizarAvisos();
+}
+
+function destacar(id) {
+  const el = document.querySelector(`#lista [data-id="${id}"]`);
+  if (!el) return;
+  const suave = !matchMedia('(prefers-reduced-motion: reduce)').matches;
+  el.scrollIntoView({ block: 'center', behavior: suave ? 'smooth' : 'auto' });
+  el.classList.add('nova');
+  setTimeout(() => el.classList.remove('nova'), 2500);
+}
+
+// ---------------------------------------------------------------- e-mails
+
+function destinatarios() {
+  return $('destinatarios')
+    .value.split(/[;,\s]+/)
+    .filter((e) => e.includes('@'));
+}
+
+function dadosDoEmail(area) {
+  return { area, data: dataDaArea(area), materias: daArea(area) };
+}
+
+function baixar(blob, nome) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = nome;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
+async function copiarTexto(texto, mensagem) {
+  try {
+    await navigator.clipboard.writeText(texto);
+    avisar(mensagem);
+  } catch {
+    avisar('Não foi possível copiar. Selecione o texto e use Ctrl+C.');
+  }
+}
+
+// Plano B para copiar: seleciona o e-mail desenhado na página e usa o "copiar" do navegador.
+function copiarPorSelecao(html) {
+  const caixa = document.createElement('div');
+  caixa.style.cssText = 'position:fixed;left:-10000px;top:0;width:800px;background:#fff';
+  caixa.innerHTML = html;
+  document.body.append(caixa);
+  const faixa = document.createRange();
+  faixa.selectNodeContents(caixa);
+  const selecao = getSelection();
+  selecao.removeAllRanges();
+  selecao.addRange(faixa);
+  const ok = document.execCommand('copy');
+  selecao.removeAllRanges();
+  caixa.remove();
+  return ok;
+}
+
+async function copiarEmail(area) {
+  const dados = dadosDoEmail(area);
+  const html = montarEmail(dados);
+  const pronto = `E-mail de ${area} copiado. No Outlook, clique no corpo da mensagem e aperte Ctrl+V.`;
+  try {
+    await navigator.clipboard.write([
+      new ClipboardItem({
+        'text/html': new Blob([html], { type: 'text/html' }),
+        'text/plain': new Blob([montarTexto(dados)], { type: 'text/plain' }),
+      }),
+    ]);
+    avisar(pronto);
+  } catch {
+    avisar(copiarPorSelecao(html) ? pronto : 'Não foi possível copiar. Abra “Pré-visualizar”, selecione o e-mail e use Ctrl+C.');
+  }
+}
+
+// Desenha o e-mail dentro de um "shadow DOM": isolado do visual desta página
+// e sem iframe, funciona igual dentro e fora da extensão.
+function desenharPrevia(caixa, html) {
+  let raiz = caixa.shadowRoot;
+  if (!raiz) {
+    raiz = caixa.attachShadow({ mode: 'open' });
+    raiz.addEventListener('click', (ev) => {
+      const link = ev.target.closest?.('a[href]');
+      if (!link) return;
+      ev.preventDefault();
+      const destino = link.getAttribute('href');
+      if (destino.startsWith('#')) raiz.querySelector(`[id="${CSS.escape(destino.slice(1))}"]`)?.scrollIntoView({ block: 'start' });
+      else window.open(destino, '_blank', 'noopener');
+    });
+  }
+  raiz.innerHTML = html;
+}
+
+function abrirPrevia(area) {
+  const dados = dadosDoEmail(area);
+  $('dialogo').dataset.area = area;
+  $('dialogo-titulo').textContent = assunto(area, dados.data);
+  desenharPrevia($('dialogo-corpo'), montarEmail(dados));
+  $('dialogo').showModal();
+  $('dialogo-corpo').scrollTop = 0;
+}
+
+const cartoesEmail = {};
+
+function cartaoEmail(area) {
+  const data = criar('input', { type: 'date', 'aria-label': `Data do e-mail de ${area}` });
+  data.addEventListener('input', () => {
+    if (data.value) estado.datas[area] = data.value;
+    else delete estado.datas[area];
+    salvar();
+    atualizarEmails();
+    atualizarAvisos();
+  });
+  const assuntoEl = criar('output', { class: 'assunto' });
+  const contagem = criar('span', { class: 'suave' });
+  const previa = criar('div', { class: 'previa', role: 'region', 'aria-label': `Prévia do e-mail de ${area}`, tabindex: '0' });
+  const botao = (rotulo, acao, classe = '') => {
+    const b = criar('button', { type: 'button', textContent: rotulo, class: classe });
+    b.addEventListener('click', acao);
+    return b;
+  };
+
+  const el = criar('article', { class: 'email', 'data-area': area }, [
+    criar('div', { class: 'cabeca-email' }, [criar('h3', { textContent: area }), contagem]),
+    criar('div', { class: 'linha' }, [
+      criar('label', { class: 'campo data' }, [criar('span', { textContent: 'Data do e-mail' }), data]),
+      criar('div', { class: 'campo largo' }, [
+        criar('span', { textContent: 'Assunto' }),
+        criar('div', { class: 'copiavel' }, [assuntoEl, botao('Copiar', () => copiarTexto(assunto(area, dataDaArea(area)), 'Assunto copiado.'))]),
+      ]),
+    ]),
+    criar('div', { class: 'botoes' }, [
+      botao('Copiar e-mail para o Outlook', () => copiarEmail(area), 'primario'),
+      botao('Pré-visualizar', () => abrirPrevia(area)),
+      botao('Abrir no Outlook (Para + Assunto)', () => {
+        const para = destinatarios().join(',');
+        location.href = `mailto:${para}?subject=${encodeURIComponent(assunto(area, dataDaArea(area)))}`;
+        if (!para) avisar('Preencha o campo “Para” para os destinatários virem junto.');
+      }),
+      botao('Baixar .html', () => {
+        const dados = dadosDoEmail(area);
+        baixar(new Blob([montarEmail(dados)], { type: 'text/html;charset=utf-8' }), nomeArquivo(area, dados.data));
+      }),
+    ]),
+    previa,
+  ]);
+  return { el, data, assuntoEl, contagem, previa };
+}
+
+let atualizacao = null;
+function atualizarEmails() {
+  clearTimeout(atualizacao);
+  atualizacao = setTimeout(() => {
+    let algum = false;
+    for (const area of AREAS) {
+      cartoesEmail[area] ??= cartaoEmail(area);
+      const c = cartoesEmail[area];
+      const dados = dadosDoEmail(area);
+      const n = dados.materias.length;
+      if (!c.el.isConnected) $('emails').append(c.el);
+      c.el.hidden = !n;
+      if (!n) continue;
+      algum = true;
+      if (document.activeElement !== c.data) c.data.value = dados.data;
+      c.assuntoEl.textContent = assunto(area, dados.data);
+      c.contagem.textContent = `${n} ${n === 1 ? 'matéria' : 'matérias'} · ${nomeArquivo(area, dados.data)}`;
+      desenharPrevia(c.previa, montarEmail(dados));
+      if ($('dialogo').open && $('dialogo').dataset.area === area) desenharPrevia($('dialogo-corpo'), montarEmail(dados));
+    }
+    $('baixar-todos').hidden = !algum;
+    $('emails').dataset.vazio = algum ? '' : 'sim';
+  }, 150);
+}
+
+// ---------------------------------------------------------------- eventos
+
+$('escolher-arquivos').addEventListener('click', () => $('arquivos').click());
+$('escolher-pasta').addEventListener('click', () => $('pasta').click());
+for (const id of ['arquivos', 'pasta']) {
+  $(id).addEventListener('change', async (ev) => {
+    const arquivos = [...ev.target.files].map((arquivo) => ({ arquivo, caminho: arquivo.webkitRelativePath || arquivo.name }));
+    ev.target.value = '';
+    await lerArquivos(arquivos);
+  });
+}
+
+const zona = $('zona-colar');
+$('colar-botao').addEventListener('click', colarDoBotao);
+document.addEventListener('paste', (ev) => {
+  if (ev.target.closest?.('input, textarea, select, [contenteditable="true"]') || !ev.clipboardData) return;
+  ev.preventDefault();
+  receberColagem({
+    texto: ev.clipboardData.getData('text/plain'),
+    html: ev.clipboardData.getData('text/html'),
+    arquivos: [...ev.clipboardData.files],
+  });
+});
+
+$('dialogo-fechar').addEventListener('click', () => $('dialogo').close());
+$('dialogo-copiar').addEventListener('click', () => copiarEmail($('dialogo').dataset.area));
+$('dialogo').addEventListener('click', (ev) => {
+  if (ev.target === $('dialogo')) $('dialogo').close(); // clique fora do conteúdo
+});
+
+document.addEventListener('dragover', (ev) => {
+  if (!ev.dataTransfer?.types.includes('Files')) return;
+  ev.preventDefault();
+  zona.classList.add('ativa');
+});
+document.addEventListener('dragleave', (ev) => {
+  if (!ev.relatedTarget) zona.classList.remove('ativa');
+});
+document.addEventListener('drop', async (ev) => {
+  if (!ev.dataTransfer?.types.includes('Files')) return;
+  ev.preventDefault();
+  zona.classList.remove('ativa');
+  await lerArquivos(await arquivosDoArrasto(ev.dataTransfer));
+});
+
+$('adicionar-colado').addEventListener('click', async () => {
+  const texto = $('colar').value.trim();
+  if (!texto) return;
+  const resultado = adicionarTextos([{ origem: '', texto }]);
+  relatar(resultado);
+  $('colar').value = '';
+  await completarPelasAbas(resultado.novas);
+  if (resultado.novas.length) destacar(resultado.novas.at(-1).id);
+});
+
+$('limpar').addEventListener('click', () => {
+  if (!estado.materias.length) return;
+  if (!confirm('Tirar todas as matérias da lista? Os destinatários continuam salvos.')) return;
+  estado.materias = [];
+  estado.datas = {};
+  salvar();
+  desenharLista();
+  atualizarEmails();
+  $('relatorio').textContent = '';
+});
+
+$('destinatarios').addEventListener('input', () => armazenamento.gravar('noticiasPara', $('destinatarios').value));
+document.querySelector('[data-copiar="destinatarios"]').addEventListener('click', () => {
+  const lista = destinatarios();
+  if (!lista.length) return avisar('Preencha os destinatários primeiro.');
+  copiarTexto(lista.join('; '), 'Destinatários copiados.');
+});
+
+$('baixar-todos').addEventListener('click', () => {
+  const entradas = AREAS.filter((a) => daArea(a).length).map((area) => {
+    const dados = dadosDoEmail(area);
+    return { nome: nomeArquivo(area, dados.data), dados: new TextEncoder().encode(montarEmail(dados)) };
+  });
+  const datas = [...new Set(AREAS.filter((a) => daArea(a).length).map(dataDaArea))].sort();
+  baixar(criarZip(entradas), `EMAILS_NOTICIAS_${formatarData(datas.at(-1), '-')}.zip`);
+});
+
+async function iniciar() {
+  const [salvo, para] = await Promise.all([armazenamento.ler('noticias'), armazenamento.ler('noticiasPara')]);
+  if (salvo?.materias) {
+    estado.materias = salvo.materias;
+    estado.datas = salvo.datas || {};
+    proximoId = Math.max(0, ...estado.materias.map((m) => m.id)) + 1;
+  }
+  $('destinatarios').value = para || '';
+  desenharLista();
+  atualizarEmails();
+}
+
+iniciar();
+
+})();

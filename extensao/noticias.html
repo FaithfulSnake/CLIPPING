@@ -18,36 +18,46 @@
 
     <main>
       <section class="bloco" aria-labelledby="t-entrada">
-        <h2 id="t-entrada">1. Matérias</h2>
-        <div id="soltar" class="soltar" tabindex="0">
-          <p><strong>Solte aqui os arquivos .txt das matérias</strong>, um .zip com eles ou uma pasta inteira.</p>
-          <p class="suave">Cada .txt é uma matéria com o texto integral. A área (Tributário, Empresarial ou Trabalhista) é escolhida pelo assunto, e você pode trocar abaixo.</p>
+        <h2 id="t-entrada">1. Colar as matérias</h2>
+        <div id="zona-colar" class="zona" tabindex="0" aria-describedby="como-colar">
+          <p class="chamada">Copie a matéria no site e aperte <kbd>Ctrl</kbd> + <kbd>V</kbd> aqui.</p>
+          <ol id="como-colar" class="passos-colar">
+            <li>No site, selecione a matéria inteira, do título até o fim, e copie com <kbd>Ctrl</kbd> + <kbd>C</kbd>.</li>
+            <li>Volte para esta aba e aperte <kbd>Ctrl</kbd> + <kbd>V</kbd>. Cada colagem vira uma matéria.</li>
+            <li>O link é achado sozinho pela aba aberta da matéria. Se ficar faltando, copie o endereço da página e cole aqui também: ele vai para a última matéria sem link.</li>
+          </ol>
           <div class="botoes">
-            <button id="escolher-arquivos" type="button" class="primario">Escolher arquivos</button>
-            <button id="escolher-pasta" type="button">Escolher pasta</button>
+            <button id="colar-botao" type="button" class="primario">Colar da área de transferência</button>
           </div>
-          <input id="arquivos" type="file" accept=".txt,.zip,text/plain,application/zip" multiple hidden />
-          <input id="pasta" type="file" webkitdirectory multiple hidden />
         </div>
         <p id="relatorio" class="relatorio" role="status" aria-live="polite"></p>
 
         <details class="ajuda">
-          <summary>Colar o texto de uma matéria</summary>
+          <summary>Colar e revisar antes de adicionar</summary>
           <textarea id="colar" rows="8" placeholder="Cole aqui o texto inteiro da matéria (várias matérias: separe com uma linha =====)"></textarea>
           <button id="adicionar-colado" type="button">Adicionar</button>
         </details>
 
         <details class="ajuda">
-          <summary>Como preparar o .txt</summary>
-          <p>Basta copiar a matéria do site e colar num .txt. Para não precisar conferir nada, comece o arquivo assim (todas as linhas são opcionais):</p>
+          <summary>Importar arquivos .txt ou .zip</summary>
+          <p>Solte os arquivos em qualquer lugar desta página, ou escolha abaixo. Cada .txt é uma matéria; também valem um .zip com os .txt e pastas com o nome da área (<code>Tributário/</code>, <code>Trabalhista/</code>…).</p>
+          <div class="botoes">
+            <button id="escolher-arquivos" type="button">Escolher arquivos</button>
+            <button id="escolher-pasta" type="button">Escolher pasta</button>
+          </div>
+          <input id="arquivos" type="file" accept=".txt,.zip,text/plain,application/zip" multiple hidden />
+          <input id="pasta" type="file" webkitdirectory multiple hidden />
+        </details>
+
+        <details class="ajuda">
+          <summary>Como a ferramenta lê a matéria</summary>
+          <p>A 1ª linha vira o título (chapéus curtos como “OPINIÃO” são ignorados), a linha “Por Fulano” vira o autor, a linha que for só um endereço vira o link e a primeira data do cabeçalho vira a data. Botões e créditos copiados junto (“Compartilhar”, “WhatsApp”, “Spacca”…) são removidos. A área é escolhida pelo assunto e pode ser trocada na lista.</p>
+          <p>Para não depender de adivinhação, o texto pode começar com rótulos (todos opcionais):</p>
           <pre>Título: STF decide que…
 Autor: Fulano de Tal
 Link: https://www.conjur.com.br/…
 Data: 05/10/2026
-Área: Tributário
-
-(texto integral da matéria)</pre>
-          <p>Sem esses rótulos, a ferramenta usa a 1ª linha como título, a linha “Por Fulano” como autor, a linha que for só um endereço (no começo ou no fim) como link e a primeira data do cabeçalho. Também valem pastas com o nome da área (<code>Tributário/</code>, <code>Trabalhista/</code>…) e várias matérias num só .txt separadas por uma linha <code>=====</code>.</p>
+Área: Tributário</pre>
         </details>
       </section>
 
@@ -56,7 +66,7 @@ Data: 05/10/2026
           <h2 id="t-lista">2. Conferir</h2>
           <p id="resumo-lista" class="suave"></p>
         </div>
-        <p id="vazio" class="vazio">Nenhuma matéria ainda. Adicione os .txt no passo 1.</p>
+        <p id="vazio" class="vazio">Nenhuma matéria ainda. Cole a primeira no passo 1.</p>
         <ol id="lista" class="lista"></ol>
       </section>
 
@@ -77,7 +87,18 @@ Data: 05/10/2026
       </section>
     </main>
 
+    <dialog id="dialogo" class="dialogo" aria-labelledby="dialogo-titulo">
+      <div class="dialogo-topo">
+        <h2 id="dialogo-titulo"></h2>
+        <div class="botoes">
+          <button id="dialogo-copiar" type="button" class="primario">Copiar e-mail para o Outlook</button>
+          <button id="dialogo-fechar" type="button">Fechar</button>
+        </div>
+      </div>
+      <div id="dialogo-corpo" class="previa previa-cheia"></div>
+    </dialog>
+
     <div id="aviso" class="aviso-flutuante" role="status" aria-live="polite" hidden></div>
-    <script type="module" src="noticias.js"></script>
+    <script src="noticias-pagina.js"></script>
   </body>
 </html>

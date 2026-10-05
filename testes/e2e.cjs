@@ -334,6 +334,118 @@ with zipfile.ZipFile(sys.argv[1], 'w') as z:
       falhas.push('notícias');
       console.log(`FALHA notícias\n${e.stack}`);
     }
+
+    // Notícias por colagem: copiar a matéria no site (Ctrl+C) e colar (Ctrl+V).
+    try {
+      const erros = [];
+      const site = await contexto.newPage();
+      await site.goto(`${base}/materia.html`);
+      const pagina = await contexto.newPage();
+      pagina.on('pageerror', (e) => erros.push(e.message));
+      await pagina.goto(`chrome-extension://${idExtensao}/noticias.html`);
+      await pagina.evaluate(() => chrome.storage.local.remove('noticias'));
+      await pagina.reload();
+
+      await site.bringToFront();
+      await site.evaluate(() => {
+        const faixa = document.createRange();
+        faixa.selectNodeContents(document.getElementById('materia'));
+        getSelection().removeAllRanges();
+        getSelection().addRange(faixa);
+      });
+      await site.keyboard.press('Control+C');
+      await pagina.bringToFront();
+      await pagina.focus('#zona-colar');
+      await pagina.keyboard.press('Control+V');
+      await pagina.waitForFunction(() => document.querySelector('#lista > li input[type=url]')?.value);
+      const lida = await pagina.$eval('#lista > li', (li) => ({
+        area: li.querySelector('select').value,
+        titulo: li.querySelector('.campo.largo input').value,
+        autor: li.querySelector('.linha input').value,
+        link: li.querySelector('input[type=url]').value,
+        data: li.querySelector('input[type=date]').value,
+        texto: li.querySelector('textarea').value,
+      }));
+      assert.deepEqual(
+        { ...lida, texto: undefined },
+        {
+          area: 'Tributário',
+          titulo: 'Juíza reconhece créditos de PIS e Cofins sobre fretes de exportação',
+          autor: 'Mariana Duarte',
+          link: `${base}/materia.html`,
+          data: '2026-10-05',
+          texto: undefined,
+        },
+      );
+      assert.equal(lida.texto.split('\n\n').length, 4, 'quatro parágrafos');
+      assert.match(lida.texto, /^A 4ª Vara Federal de Curitiba/);
+      assert.match(lida.texto, /A Fazenda Nacional sustentava que a exportação não gera/);
+      assert.doesNotMatch(lida.texto, /Spacca|Leia também|Compartilhar|WhatsApp|Imprimir|TRIBUTÁRIO/);
+
+      // Matéria sem aba aberta: fica sem link; colar o endereço sozinho completa.
+      const colar = (texto, html = '') =>
+        pagina.evaluate(
+          ([texto, html]) => {
+            const dados = new DataTransfer();
+            dados.setData('text/plain', texto);
+            if (html) dados.setData('text/html', html);
+            document.getElementById('zona-colar').dispatchEvent(new ClipboardEvent('paste', { clipboardData: dados, bubbles: true, cancelable: true }));
+          },
+          [texto, html],
+        );
+      await colar(fs.readFileSync(path.join(__dirname, 'noticias', '03 - stj recuperacao.txt'), 'utf8').replace(/https:\S+\n?$/, ''));
+      await pagina.waitForFunction(() => document.querySelectorAll('#lista > li').length === 2);
+      assert.equal(await pagina.$eval('#lista > li:nth-child(2) input[type=url]', (i) => i.value), '');
+      await colar('https://www.conjur.com.br/2026-out-05/stj-admite-creditos-socios-plano-recuperacao/');
+      await pagina.waitForFunction(() => document.querySelector('#lista > li:nth-child(2) input[type=url]').value);
+      assert.match(await pagina.textContent('#aviso'), /Link colocado na matéria 2/);
+
+      // Botão "Colar da área de transferência".
+      await pagina.evaluate((t) => navigator.clipboard.writeText(t), fs.readFileSync(path.join(__dirname, 'noticias', '02 - tst gerente.txt'), 'utf8'));
+      await pagina.click('#colar-botao');
+      await pagina.waitForFunction(() => document.querySelectorAll('#lista > li').length === 3);
+
+      // Pré-visualização na página e em tela cheia.
+      await pagina.waitForFunction(() =>
+        document.querySelector('.email[data-area="Tributário"] .previa')?.shadowRoot?.textContent.includes('Notícias - Tributário - 05.10.2026'),
+      );
+      await pagina.locator('.email[data-area="Trabalhista"]').getByRole('button', { name: 'Pré-visualizar' }).click();
+      assert.equal(await pagina.$eval('#dialogo', (d) => d.open), true);
+      const cheia = await pagina.$eval('#dialogo-corpo', (c) => c.shadowRoot.textContent);
+      assert.match(cheia, /Notícias - Trabalhista - 05\.10\.2026[\s\S]*Por: Carla Menezes \(JOTA\)[\s\S]*Ficaram vencidos três ministros/);
+      if (process.env.SALVAR_PRINTS) await pagina.screenshot({ path: path.join(process.env.SALVAR_PRINTS, 'previa.png') });
+      await pagina.click('#dialogo-fechar');
+      assert.equal(await pagina.$eval('#dialogo', (d) => d.open), false);
+      assert.deepEqual(erros, []);
+      console.log('ok   notícias: colar do site (Ctrl+V), link pela aba, link colado, botão colar e pré-visualização');
+      await site.close();
+      await pagina.close();
+    } catch (e) {
+      falhas.push('notícias por colagem');
+      console.log(`FALHA notícias por colagem\n${e.stack}`);
+    }
+
+    // Versão de notícias num arquivo só, aberta direto do disco (sem a extensão).
+    try {
+      const erros = [];
+      const pagina = await contexto.newPage();
+      pagina.on('pageerror', (e) => erros.push(e.message));
+      await pagina.goto(`file://${path.join(RAIZ, 'script', 'noticias-sem-instalar.html')}`);
+      await pagina.evaluate((texto) => {
+        const dados = new DataTransfer();
+        dados.setData('text/plain', texto);
+        document.getElementById('zona-colar').dispatchEvent(new ClipboardEvent('paste', { clipboardData: dados, bubbles: true, cancelable: true }));
+      }, fs.readFileSync(path.join(__dirname, 'noticias', '01 - stf icms.txt'), 'utf8'));
+      await pagina.waitForFunction(() =>
+        document.querySelector('.email[data-area="Tributário"] .previa')?.shadowRoot?.textContent.includes('STF afasta ICMS'),
+      );
+      assert.deepEqual(erros, []);
+      console.log('ok   notícias sem instalar: funciona aberta direto do arquivo');
+      await pagina.close();
+    } catch (e) {
+      falhas.push('notícias sem instalar');
+      console.log(`FALHA notícias sem instalar\n${e.stack}`);
+    }
   } finally {
     await contexto.close();
     servidor.close();

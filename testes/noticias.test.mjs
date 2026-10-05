@@ -10,6 +10,7 @@ import {
   classificarArea,
   dataPredominante,
   interpretarMateria,
+  linkSozinho,
   montarEmail,
   montarTexto,
   nomeArquivo,
@@ -83,10 +84,32 @@ test('classificação pelo assunto', () => {
 });
 
 test('não confunde frase do texto com autor ou data', () => {
-  const m = interpretarMateria('Título\nPor unanimidade, a turma decidiu em 03/10/2026 manter a decisão.\nMais texto.');
+  const m = interpretarMateria('STJ mantém decisão sobre o tema\nPor unanimidade, a turma decidiu em 03/10/2026 manter a decisão.\nMais texto.');
+  assert.equal(m.titulo, 'STJ mantém decisão sobre o tema');
   assert.equal(m.autor, '');
   assert.equal(m.data, '');
   assert.match(m.texto, /^Por unanimidade/);
+});
+
+test('chapéu acima do título sai do texto e pode indicar a área', () => {
+  const m = interpretarMateria('OPINIÃO\nTRIBUTÁRIO\nA reforma e os créditos de PIS e Cofins na transição\nPor Fulano de Tal\n\nTexto da coluna.');
+  assert.equal(m.titulo, 'A reforma e os créditos de PIS e Cofins na transição');
+  assert.equal(m.area, 'Tributário');
+  assert.equal(m.areaConferir, false);
+  assert.equal(m.texto, 'Texto da coluna.');
+  const curto = interpretarMateria('Reforma tributária avança\n\nTexto.');
+  assert.equal(curto.titulo, 'Reforma tributária avança', 'título de três palavras continua título');
+});
+
+test('copiado do site: tira rodapé da revista e linhas de navegação', () => {
+  const m = interpretarMateria('Título da matéria de teste aqui\n\nParágrafo.\n\nRevista Consultor Jurídico, 5 de outubro de 2026, 8h05\nTopo da página');
+  assert.equal(m.texto, 'Parágrafo.');
+});
+
+test('link colado sozinho', () => {
+  assert.equal(linkSozinho('  https://www.conjur.com.br/2026-out-05/x/ \n'), 'https://www.conjur.com.br/2026-out-05/x/');
+  assert.equal(linkSozinho('veja https://a.b/c'), '');
+  assert.equal(linkSozinho('Título\nhttps://a.b/c'), '');
 });
 
 test('datas em vários formatos', () => {

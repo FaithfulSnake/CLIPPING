@@ -15,6 +15,17 @@ test('script sem instalar, bookmarklet e página de instalação estão atualiza
   assert.doesNotMatch(bookmarklet, /["<>&]/, 'seguro dentro do atributo href');
 });
 
+test('página de notícias (script único e versão sem instalar) está atualizada e é válida', () => {
+  const { noticias, semInstalar } = gerar();
+  assert.equal(ler('extensao/noticias-pagina.js'), noticias);
+  assert.equal(ler('script/noticias-sem-instalar.html'), semInstalar);
+  assert.doesNotMatch(noticias, /^\s*(import|export)\b/m, 'sem módulos');
+  assert.doesNotThrow(() => new vm.Script(noticias));
+  assert.doesNotMatch(noticias, /<\/script/i, 'pode ser embutido num <script>');
+  assert.match(ler('extensao/noticias.html'), /<script src="noticias-pagina\.js"><\/script>/);
+  assert.doesNotMatch(semInstalar, /src="|href="noticias\.css"/, 'tudo embutido');
+});
+
 test('script e bookmarklet são JavaScript válido', () => {
   const { script, bookmarklet } = gerar();
   assert.doesNotThrow(() => new vm.Script(script));

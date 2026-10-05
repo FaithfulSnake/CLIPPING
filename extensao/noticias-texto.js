@@ -194,6 +194,7 @@ const LIXO = new Set(
     'spacca', 'freepik', 'reproducao', 'divulgacao', 'publicidade', 'continua apos a publicidade', 'assine', 'newsletter',
   ].map(normalizar),
 );
+const LIXO_INICIO = /^(revista consultor juridico, \d|topo da pagina$|voltar ao topo$)/;
 
 const FONTES = [
   [/(^|\.)jota\.info$/, 'JOTA'],
@@ -211,12 +212,23 @@ export function fonteDoLink(link) {
   }
 }
 
+// Endereço sozinho (o usuário colou só o link da matéria), ou ''.
+export function linkSozinho(texto) {
+  return String(texto ?? '').trim().match(SO_URL)?.[1] || '';
+}
+
 export function linkValido(link) {
   try {
     return ['http:', 'https:'].includes(new URL(link).protocol);
   } catch {
     return false;
   }
+}
+
+// Linha curta acima do título, como "OPINIÃO", "Notícias" ou "TRIBUTÁRIO".
+function pareceChapeu(linha) {
+  const palavras = linha.split(/\s+/).length;
+  return palavras <= 2 || (palavras <= 4 && /\p{L}/u.test(linha) && linha === linha.toLocaleUpperCase('pt-BR'));
 }
 
 function limparTitulo(titulo) {
@@ -264,22 +276,40 @@ export function interpretarMateria(textoBruto, origem = '') {
   const naoVazias = linhas.flatMap((l, i) => (l ? [[l, i]] : []));
 
   // Cabeçalho: as primeiras linhas curtas, antes do primeiro parágrafo longo.
-  for (const [linha, i] of naoVazias.slice(0, 8)) {
-    if (linha.length > 200) break;
-    const url = linha.match(SO_URL);
-    const autor = !m.autor && !ROTULO.test(linha) ? autorDaLinha(linha) : null;
-    if (aplicarRotulo(linha)) usada[i] = true;
-    else if (url) {
-      m.link ||= url[1];
+  const cabecalho = [];
+  for (const par of naoVazias.slice(0, 8)) {
+    if (par[0].length > 200) break;
+    cabecalho.push(par);
+  }
+  const tipos = cabecalho.map(([linha]) =>
+    ROTULO.test(linha) ? 'rotulo' : SO_URL.test(linha) ? 'url' : autorDaLinha(linha) ? 'autor' : linhaSoDeData(linha) ? 'data' : 'texto',
+  );
+  // Título: a 1ª linha de texto que não pareça "chapéu" (OPINIÃO, Notícias…);
+  // os chapéus antes dele saem do texto.
+  const textos = tipos.flatMap((t, k) => (t === 'texto' ? [k] : []));
+  const rotulado = cabecalho.some(([linha], k) => tipos[k] === 'rotulo' && /^t[ií]tulo\s*:/i.test(linha));
+  const indiceTitulo = rotulado ? -1 : (textos.find((k) => !pareceChapeu(cabecalho[k][0])) ?? textos[0] ?? -1);
+
+  for (const [k, [linha, i]] of cabecalho.entries()) {
+    const tipo = tipos[k];
+    if (tipo === 'rotulo') {
+      aplicarRotulo(linha);
       usada[i] = true;
-    } else if (autor) {
+    } else if (tipo === 'url') {
+      m.link ||= linha.match(SO_URL)[1];
+      usada[i] = true;
+    } else if (tipo === 'autor' && !m.autor) {
+      const autor = autorDaLinha(linha);
       m.autor = autor.autor;
       m.data ||= autor.data;
       usada[i] = true;
-    } else if (linhaSoDeData(linha)) {
+    } else if (tipo === 'data') {
       m.data ||= acharData(linha);
       usada[i] = true;
-    } else if (!m.titulo) {
+    } else if (tipo === 'texto' && k < indiceTitulo) {
+      m.areaRotulo ||= areaPelaOrigem(linha);
+      usada[i] = true;
+    } else if (k === indiceTitulo) {
       m.titulo = limparTitulo(linha);
       usada[i] = true;
     }
@@ -300,7 +330,7 @@ export function interpretarMateria(textoBruto, origem = '') {
   // Corpo: o resto, sem lixo de página e sem linhas em branco repetidas.
   const corpo = [];
   for (const [i, linha] of linhas.entries()) {
-    if (usada[i] || LIXO.has(normalizar(linha))) continue;
+    if (usada[i] || LIXO.has(normalizar(linha)) || LIXO_INICIO.test(normalizar(linha))) continue;
     if (!linha && (!corpo.length || !corpo.at(-1))) continue;
     corpo.push(linha);
   }

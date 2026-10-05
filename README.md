@@ -5,7 +5,7 @@ Extensão do navegador (Chrome/Edge) que reúne ferramentas do escritório. Não
 | Ferramenta | O que faz |
 | --- | --- |
 | **Prints com rolagem** | Rola a página do topo até o fim, tira um print de cada trecho e baixa um **ZIP** com os prints **numerados na ordem da página**, para transcrição. |
-| **Notícias jurídicas** | Recebe os **.txt com o texto integral** das matérias e devolve **um e-mail por área** (Tributário, Empresarial e Trabalhista) no modelo do escritório, **sem resumir**, pronto para colar no Outlook. |
+| **Notícias jurídicas** | Você copia e cola o **texto integral** das matérias e recebe **um e-mail por área** (Tributário, Empresarial e Trabalhista) no modelo do escritório, **sem resumir**, pronto para colar no Outlook. |
 
 As duas ficam no mesmo ícone: clique nele e escolha a aba da ferramenta.
 
@@ -125,14 +125,20 @@ Substitui a montagem dos e-mails de notícias que antes era feita no chat, com u
 ### Usar
 
 1. Clique no ícone da extensão → aba **Notícias jurídicas** → **Abrir Notícias jurídicas** (abre numa aba própria).
-2. **Solte os .txt** das matérias na página (ou clique em **Escolher arquivos** / **Escolher pasta**). Também aceita um **.zip** com os .txt e pastas inteiras.
-3. **Confira** a lista: cada matéria aparece com a área escolhida pelo assunto, título, autor, link e data. Tudo pode ser corrigido ali mesmo, inclusive o texto. Use **Não incluir** para tirar uma matéria do e-mail e as setas para mudar a ordem.
-4. Em **E-mails**, para cada área:
+2. **Copie e cole cada matéria:** no site, selecione a matéria do título até o fim e copie (<kbd>Ctrl</kbd>+<kbd>C</kbd>); volte na aba de notícias e aperte <kbd>Ctrl</kbd>+<kbd>V</kbd> (ou clique em **Colar da área de transferência**). Cada colagem vira uma matéria.
+3. **Link:** é achado sozinho pela aba aberta da matéria. Se ficar faltando, copie o endereço da página e cole na aba de notícias: ele vai para a última matéria sem link.
+4. **Confira** a lista: área (escolhida pelo assunto), título, autor, link e data. Tudo pode ser corrigido ali mesmo, inclusive o texto. **Não incluir** tira uma matéria do e-mail; as setas mudam a ordem.
+5. Em **E-mails**, para cada área:
+   - a prévia aparece logo abaixo dos botões, e **Pré-visualizar** mostra o e-mail inteiro em tela cheia;
    - **Copiar e-mail para o Outlook** → no Outlook, clique no corpo da mensagem e cole (<kbd>Ctrl</kbd>+<kbd>V</kbd>);
-   - **Abrir no Outlook (Para + Assunto)** cria a mensagem já com destinatários e assunto (depois é só colar o corpo);
+   - **Abrir no Outlook (Para + Assunto)** cria a mensagem já com destinatários e assunto;
    - **Baixar .html** salva `EMAIL_NOTICIAS_[ÁREA]_DD-MM-AAAA.html`, e **Baixar todos (.zip)** salva os três.
 
 O campo **Para** é preenchido uma vez e fica salvo só no seu navegador (os endereços não vão no código, que é público, nem dentro do e-mail). A lista também fica salva: se fechar a aba sem querer, as matérias continuam lá até você clicar em **Limpar tudo**.
+
+Ainda dá para usar arquivos: em **Importar arquivos .txt ou .zip** (ou soltando os arquivos na página). Cada .txt é uma matéria; valem .zip e pastas com o nome da área (`Tributário/`, `Trabalhista/`…).
+
+**Sem a extensão:** o arquivo [`script/noticias-sem-instalar.html`](script/noticias-sem-instalar.html) é a mesma ferramenta num arquivo só. Baixe e abra com dois cliques no Chrome ou no Edge. Só não acha o link pela aba aberta (cole o endereço da página).
 
 ### O e-mail gerado
 
@@ -143,31 +149,21 @@ Segue o modelo do escritório (estilos dentro do próprio HTML, que o Outlook pr
 - Para cada matéria: **título** centralizado em negrito, **`Por: autor`** (só quando houver autor; matérias do JOTA e do Migalhas ganham o nome do portal entre parênteses), **texto integral** justificado, um parágrafo por parágrafo da matéria, e **`Link de Acesso:`**.
 - Calibri Light 11 no texto e Calibri nos títulos.
 
-### Como preparar os .txt
+### Como a ferramenta lê a matéria
 
-Basta copiar a matéria do site e colar num .txt (Bloco de Notas). A ferramenta reconhece sozinha:
-
-- **título**: a primeira linha;
+- **título**: a primeira linha; chapéus curtos acima dele ("OPINIÃO", "Notícias", "TRIBUTÁRIO") são ignorados, e um chapéu com o nome da área já define a área;
 - **autor**: a linha "Por Fulano de Tal";
-- **link**: a linha que for só um endereço `https://…`, no começo ou no fim (ou `Link de Acesso: https://…`);
+- **link**: a aba aberta com o mesmo título, a linha que for só um endereço `https://…` ou o endereço colado depois;
 - **data**: a primeira data do cabeçalho ("05/10/2026", "5 de outubro de 2026, 8h05"…);
 - **área**: pelo assunto (termos como ICMS, Carf, CLT, TST, recuperação judicial, sócios…). Quando não dá para ter certeza, a matéria aparece com o aviso **confira a área**.
 
-Botões e créditos copiados junto ("Compartilhar", "WhatsApp", "Spacca"…) são removidos. Para não depender de adivinhação, o .txt pode começar com rótulos (todos opcionais):
+Ao colar do site, menus, botões ("Compartilhar", "WhatsApp"), imagens e seus créditos ("Spacca") e quadros "Leia também" ficam de fora. Para não depender de adivinhação, o texto pode começar com rótulos (todos opcionais): `Título:`, `Autor:`, `Link:`, `Data:` e `Área:`.
 
-```
-Título: STF decide que…
-Autor: Fulano de Tal
-Link: https://www.conjur.com.br/…
-Data: 05/10/2026
-Área: Tributário
+Os avisos da lista ajudam a conferir antes de enviar: **sem link**, **confira a área**, **matéria de outra data** e **texto curto** (quando parece ter vindo só um trecho da matéria).
 
-(texto integral da matéria)
-```
+### Permissões da extensão
 
-Outras formas aceitas: pastas com o nome da área (`Tributário/`, `Empresarial/`, `Trabalhista/`), arquivo começando pelo nome da área (`Trabalhista - 01.txt`) e várias matérias num só .txt, separadas por uma linha `=====`. Arquivos em UTF-8, ANSI ou "Unicode" do Bloco de Notas funcionam.
-
-Os avisos da lista ajudam a conferir antes de enviar: **sem link**, **confira a área**, **matéria de outra data** e **texto curto** (quando o .txt parece ter só um trecho da matéria).
+Além do necessário para os prints, a extensão pede para **ler a área de transferência** (botão "Colar") e **ver os títulos e endereços das abas abertas** (para achar o link da matéria sozinha). Nada sai do seu computador.
 
 ## Para quem for mexer no código
 
@@ -181,12 +177,15 @@ extensao/            a extensão (Manifest V3)
   db.js, opcoes.js   armazenamento das capturas e das opções
   popup.*            janela do ícone (abas das ferramentas)
   resultado.*        página com a prévia dos prints e o botão de baixar
-  noticias.*         ferramenta Notícias jurídicas (página)
-  noticias-texto.js  leitura dos .txt, área pelo assunto e montagem do e-mail
+  noticias.html/.css página da ferramenta Notícias jurídicas
+  noticias.js        página: colar, lista, prévia, copiar (fonte do noticias-pagina.js)
+  noticias-pagina.js gerado: script único da página (funciona até aberta direto do arquivo)
+  noticias-texto.js  leitura da matéria, área pelo assunto e montagem do e-mail
   unzip.js           leitura de .zip e da codificação dos .txt
 script/
   fonte/painel.js    painel da versão sem instalar
-  captura-sem-instalar.js, bookmarklet.txt, instalar-favorito.html   gerados (não editar)
+  captura-sem-instalar.js, bookmarklet.txt, instalar-favorito.html,
+  noticias-sem-instalar.html                                          gerados (não editar)
 ferramentas/         geradores (script, ícones, pacote da extensão)
 testes/              testes unitários e de ponta a ponta (páginas e matérias fictícias de exemplo)
 ```
@@ -196,7 +195,7 @@ Comandos (precisam do Node.js 20+; os de ponta a ponta precisam do Playwright co
 ```sh
 npm test            # testes unitários
 npm run e2e         # abre o Chromium com a extensão: captura testes/paginas e monta os e-mails de testes/noticias
-npm run gerar       # regenera script/ depois de mudar extensao/ ou script/fonte/
+npm run gerar       # regenera os arquivos gerados depois de mudar extensao/ ou script/fonte/
 npm run empacotar   # gera dist/ferramentas-fanjas.zip para distribuir a extensão
 node ferramentas/gerar-icones.cjs   # regenera os PNGs a partir de extensao/icones/icone.svg
 ```

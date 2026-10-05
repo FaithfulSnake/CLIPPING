@@ -104,13 +104,18 @@ function mostrarAba(nome, guardar = true) {
 // Abre a página de notícias (ou volta para ela, se já estiver aberta).
 async function abrirNoticias() {
   const url = chrome.runtime.getURL('noticias.html');
-  const [aberta] = await chrome.runtime.getContexts({ contextTypes: ['TAB'], documentUrls: [url] });
-  if (aberta?.tabId >= 0) {
-    const aba = await chrome.tabs.update(aberta.tabId, { active: true });
-    await chrome.windows.update(aba.windowId, { focused: true });
-  } else {
-    await chrome.tabs.create({ url });
+  try {
+    const [aberta] = await chrome.runtime.getContexts({ contextTypes: ['TAB'], documentUrls: [url] });
+    if (aberta?.tabId >= 0) {
+      const aba = await chrome.tabs.update(aberta.tabId, { active: true });
+      await chrome.windows.update(aba.windowId, { focused: true });
+      window.close();
+      return;
+    }
+  } catch {
+    // sem como achar a aba já aberta: abre outra
   }
+  await chrome.tabs.create({ url });
   window.close();
 }
 

@@ -91,13 +91,43 @@ function mostrarConfig() {
   $('tela-config').hidden = false;
 }
 
+function mostrarAba(nome, guardar = true) {
+  for (const aba of ['prints', 'noticias']) {
+    const ativa = aba === nome;
+    $(`aba-${aba}`).setAttribute('aria-selected', String(ativa));
+    $(`aba-${aba}`).tabIndex = ativa ? 0 : -1;
+    $(`painel-${aba}`).hidden = !ativa;
+  }
+  if (guardar) chrome.storage.local.set({ abaPopup: nome });
+}
+
+// Abre a página de notícias (ou volta para ela, se já estiver aberta).
+async function abrirNoticias() {
+  const url = chrome.runtime.getURL('noticias.html');
+  const [aberta] = await chrome.runtime.getContexts({ contextTypes: ['TAB'], documentUrls: [url] });
+  if (aberta?.tabId >= 0) {
+    const aba = await chrome.tabs.update(aberta.tabId, { active: true });
+    await chrome.windows.update(aba.windowId, { focused: true });
+  } else {
+    await chrome.tabs.create({ url });
+  }
+  window.close();
+}
+
 async function main() {
-  const [opcoes, abas, status, comandos] = await Promise.all([
+  const [opcoes, abas, status, comandos, guardado] = await Promise.all([
     lerOpcoes(),
     chrome.tabs.query({ active: true, currentWindow: true }),
     enviar({ tipo: 'status' }),
     chrome.commands.getAll(),
+    chrome.storage.local.get(['abaPopup', 'noticias']),
   ]);
+  mostrarAba(status?.ativo ? 'prints' : guardado.abaPopup || 'prints', false);
+  const pendentes = guardado.noticias?.materias?.length || 0;
+  if (pendentes) {
+    $('noticias-pendentes').textContent = `${pendentes} ${pendentes === 1 ? 'matéria está' : 'matérias estão'} na lista, esperando para virar e-mail.`;
+    $('noticias-pendentes').hidden = false;
+  }
   aba = abas[0];
   preencher(opcoes);
   $('pasta').value = limparNome(aba?.title);
@@ -145,6 +175,16 @@ $('parar').addEventListener('click', async () => {
 });
 
 $('nova').addEventListener('click', mostrarConfig);
+
+$('aba-prints').addEventListener('click', () => mostrarAba('prints'));
+$('aba-noticias').addEventListener('click', () => mostrarAba('noticias'));
+document.querySelector('.abas').addEventListener('keydown', (ev) => {
+  if (ev.key !== 'ArrowLeft' && ev.key !== 'ArrowRight') return;
+  const proxima = $('aba-prints').getAttribute('aria-selected') === 'true' ? 'noticias' : 'prints';
+  mostrarAba(proxima);
+  $(`aba-${proxima}`).focus();
+});
+$('abrir-noticias').addEventListener('click', abrirNoticias);
 
 $('restaurar').addEventListener('click', async () => {
   preencher(OPCOES_PADRAO);

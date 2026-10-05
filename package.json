@@ -1,8 +1,8 @@
 {
-  "name": "clipping-prints",
-  "version": "1.0.0",
+  "name": "ferramentas-fanjas",
+  "version": "1.1.0",
   "private": true,
-  "description": "Extensão e script que rolam uma página do topo ao fim, tiram um print de cada trecho e exportam um ZIP com os prints numerados.",
+  "description": "Extensão com ferramentas do escritório: prints com rolagem exportados em ZIP numerado e e-mails de notícias jurídicas com o texto integral das matérias.",
   "type": "module",
   "scripts": {
     "gerar": "node ferramentas/gerar-script.mjs",

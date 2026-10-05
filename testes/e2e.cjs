@@ -247,6 +247,93 @@ async function main() {
       falhas.push('versão sem instalar');
       console.log(`FALHA versão sem instalar\n${e.stack}`);
     }
+
+    // Ferramenta de notícias: .txt soltos + .zip do Windows com pasta da área.
+    try {
+      const pasta = path.join(__dirname, 'noticias');
+      const zipNoticias = path.join(tmp, 'noticias.zip');
+      execFileSync('python3', [
+        '-c',
+        `import sys, zipfile
+class Info(zipfile.ZipInfo):
+    def _encodeFilenameFlags(self):
+        return self.filename.encode('cp850'), self.flag_bits & ~0x800
+with zipfile.ZipFile(sys.argv[1], 'w') as z:
+    i = Info('Empresarial/05 - marca.txt')
+    i.compress_type = zipfile.ZIP_DEFLATED
+    z.writestr(i, open(sys.argv[2], 'rb').read())`,
+        zipNoticias,
+        path.join(pasta, 'Empresarial', '05 - marca.txt'),
+      ]);
+      const pagina = await contexto.newPage();
+      await pagina.goto(`chrome-extension://${idExtensao}/noticias.html`);
+      await pagina.setInputFiles('#arquivos', [
+        ...['01 - stf icms.txt', '02 - tst gerente.txt', '03 - stj recuperacao.txt', '04 - varias.txt'].map((f) => path.join(pasta, f)),
+        zipNoticias,
+      ]);
+      await pagina.waitForFunction(() => document.querySelectorAll('#lista > li').length === 6);
+      assert.match(await pagina.textContent('#relatorio'), /^6 matérias adicionadas \(2 Tributário, 2 Empresarial, 2 Trabalhista\)\.$/);
+      assert.deepEqual(
+        await pagina.$$eval('#lista > li', (lis) => lis.map((li) => li.dataset.area)),
+        ['Tributário', 'Trabalhista', 'Empresarial', 'Tributário', 'Trabalhista', 'Empresarial'],
+      );
+      const avisosMotorista = await pagina.textContent('#lista > li:nth-child(5) .avisos');
+      assert.match(avisosMotorista, /matéria de 04\/10\/2026, e-mail de 05\/10\/2026/);
+      assert.match(await pagina.textContent('#lista > li:nth-child(4) .avisos'), /sem link/);
+
+      await pagina.waitForFunction(() => document.querySelectorAll('.email:not([hidden])').length === 3);
+      assert.deepEqual(await pagina.$$eval('.email:not([hidden]) .assunto', (els) => els.map((e) => e.textContent)), [
+        'Notícias - Tributário - 05.10.2026',
+        'Notícias - Empresarial - 05.10.2026',
+        'Notícias - Trabalhista - 05.10.2026',
+      ]);
+
+      const emailTrib = pagina.locator('.email[data-area="Tributário"]');
+      const [baixado] = await Promise.all([pagina.waitForEvent('download'), emailTrib.getByRole('button', { name: 'Baixar .html' }).click()]);
+      assert.equal(baixado.suggestedFilename(), 'EMAIL_NOTICIAS_TRIBUTARIO_05-10-2026.html');
+      const html = fs.readFileSync(await baixado.path(), 'utf8');
+      assert.match(html, /1\. STF afasta ICMS[\s\S]*2\. Reforma tributária/);
+      assert.ok(html.includes('A decisão tem repercussão geral e deverá ser observada pelos demais tribunais'), 'texto integral');
+      assert.equal((html.match(/<div id="materia-/g) || []).length, 2);
+      guardar(await baixado.path(), 'EMAIL_NOTICIAS_TRIBUTARIO.html');
+
+      // "Copiar e-mail para o Outlook" põe o HTML na área de transferência.
+      await pagina.evaluate(() => {
+        const original = navigator.clipboard.write.bind(navigator.clipboard);
+        navigator.clipboard.write = async (itens) => {
+          globalThis.copiado = await (await itens[0].getType('text/html')).text();
+          return original(itens);
+        };
+      });
+      await pagina.locator('.email[data-area="Trabalhista"]').getByRole('button', { name: 'Copiar e-mail para o Outlook' }).click();
+      await pagina.waitForFunction(() => !document.getElementById('aviso').hidden);
+      assert.match(await pagina.textContent('#aviso'), /E-mail de Trabalhista copiado/);
+      assert.match(await pagina.evaluate(() => globalThis.copiado), /Notícias - Trabalhista - 05\.10\.2026[\s\S]*Por: Carla Menezes \(JOTA\)/);
+
+      // Tirar uma matéria do e-mail e conferir que a escolha fica salva.
+      await pagina.selectOption('#lista > li:nth-child(4) select.area', 'excluir');
+      await pagina.waitForFunction(() => /1 matéria ·/.test(document.querySelector('.email[data-area="Tributário"] .cabeca-email').textContent));
+      await pagina.waitForTimeout(500);
+      await pagina.reload();
+      await pagina.waitForFunction(() => document.querySelectorAll('#lista > li').length === 6);
+      assert.equal(await pagina.$eval('#lista > li:nth-child(4)', (li) => li.dataset.area), 'excluir');
+
+      if (process.env.SALVAR_PRINTS) {
+        await pagina.setViewportSize({ width: 1280, height: 900 });
+        await pagina.screenshot({ path: path.join(process.env.SALVAR_PRINTS, 'noticias.png'), fullPage: true });
+      }
+      const [todos] = await Promise.all([pagina.waitForEvent('download'), pagina.click('#baixar-todos')]);
+      assert.equal(todos.suggestedFilename(), 'EMAILS_NOTICIAS_05-10-2026.zip');
+      assert.deepEqual(
+        lerZip(await todos.path()).map((i) => i.nome),
+        ['EMAIL_NOTICIAS_TRIBUTARIO_05-10-2026.html', 'EMAIL_NOTICIAS_EMPRESARIAL_05-10-2026.html', 'EMAIL_NOTICIAS_TRABALHISTA_05-10-2026.html'],
+      );
+      console.log('ok   notícias: 6 matérias de .txt e .zip viram 3 e-mails (baixar, copiar, salvar)');
+      await pagina.close();
+    } catch (e) {
+      falhas.push('notícias');
+      console.log(`FALHA notícias\n${e.stack}`);
+    }
   } finally {
     await contexto.close();
     servidor.close();

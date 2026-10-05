@@ -1,8 +1,19 @@
-# Clipping – Prints com rolagem
+# Ferramentas Fanjas
 
-Ferramenta para **transcrever páginas da web a partir de prints**: ela rola a página do topo até o fim, tira um print (captura de tela) de cada trecho e baixa um **ZIP** com uma pasta contendo os prints **numerados na ordem da página**.
+Extensão do navegador (Chrome/Edge) que reúne ferramentas do escritório. Não precisa executar nada no computador (sem Python, sem cmd).
 
-Não precisa executar nada no computador (sem Python, sem cmd). Há duas formas de usar:
+| Ferramenta | O que faz |
+| --- | --- |
+| **Prints com rolagem** | Rola a página do topo até o fim, tira um print de cada trecho e baixa um **ZIP** com os prints **numerados na ordem da página**, para transcrição. |
+| **Notícias jurídicas** | Recebe os **.txt com o texto integral** das matérias e devolve **um e-mail por área** (Tributário, Empresarial e Trabalhista) no modelo do escritório, **sem resumir**, pronto para colar no Outlook. |
+
+As duas ficam no mesmo ícone: clique nele e escolha a aba da ferramenta.
+
+---
+
+# Prints com rolagem
+
+Há duas formas de usar:
 
 |               | **Extensão** (recomendada)                         | **Sem instalar** (favorito)                                   |
 | ------------- | -------------------------------------------------- | ------------------------------------------------------------- |
@@ -37,12 +48,14 @@ O nome da pasta vem preenchido com o título da página e pode ser trocado antes
 
 ### Instalar (uma vez)
 
-1. Baixe o arquivo **`prints-com-rolagem.zip`** (enviado junto com esta ferramenta) **ou**, aqui no GitHub, clique no botão verde **Code → Download ZIP** e use a pasta `extensao` que vem dentro dele.
+1. Baixe o arquivo **`ferramentas-fanjas.zip`** (enviado junto com esta ferramenta) **ou**, aqui no GitHub, clique no botão verde **Code → Download ZIP** e use a pasta `extensao` que vem dentro dele.
 2. Descompacte: botão direito no arquivo → **Extrair tudo…**.
 3. No navegador, abra `chrome://extensions` (no Edge: `edge://extensions`).
 4. Ligue o **Modo do desenvolvedor** (canto superior direito; no Edge fica no menu da esquerda).
 5. Clique em **Carregar sem compactação** e escolha a pasta descompactada (a que tem o arquivo `manifest.json`).
-6. Clique no ícone de quebra-cabeça da barra do navegador e fixe **Clipping – Prints com rolagem**.
+6. Clique no ícone de quebra-cabeça da barra do navegador e fixe **Ferramentas Fanjas**.
+
+> Já tinha a versão anterior ("Clipping – Prints com rolagem")? Remova-a em `chrome://extensions` e carregue a pasta nova, ou substitua os arquivos da pasta antiga pelos novos e clique no botão de recarregar (↻) da extensão.
 
 > Não apague nem mova a pasta depois de carregar: o navegador usa os arquivos dela.
 > Se o "Modo do desenvolvedor" estiver bloqueado, é política da empresa: use a forma **sem instalar** (seção 2).
@@ -50,7 +63,7 @@ O nome da pasta vem preenchido com o título da página e pode ser trocado antes
 ### Usar
 
 1. Abra a página que vai transcrever (faça login antes, se precisar).
-2. Clique no ícone da extensão, confira o **nome da pasta** e clique em **Iniciar captura**.
+2. Clique no ícone da extensão, na aba **Prints com rolagem**, confira o **nome da pasta** e clique em **Iniciar captura**.
 3. Não troque de aba nem minimize a janela até terminar. Se trocar, a captura pausa e continua quando você voltar.
 4. Ao terminar, abre uma aba com a prévia de todos os prints e o ZIP é baixado sozinho (o botão **Baixar ZIP** baixa de novo).
 
@@ -103,6 +116,59 @@ Usa o compartilhamento de aba do próprio navegador (o mesmo das videochamadas) 
 - Só rola na vertical.
 - A extensão não funciona no Firefox.
 
+---
+
+# Notícias jurídicas
+
+Substitui a montagem dos e-mails de notícias que antes era feita no chat, com uma diferença: **o e-mail leva a matéria inteira**, não um resumo.
+
+### Usar
+
+1. Clique no ícone da extensão → aba **Notícias jurídicas** → **Abrir Notícias jurídicas** (abre numa aba própria).
+2. **Solte os .txt** das matérias na página (ou clique em **Escolher arquivos** / **Escolher pasta**). Também aceita um **.zip** com os .txt e pastas inteiras.
+3. **Confira** a lista: cada matéria aparece com a área escolhida pelo assunto, título, autor, link e data. Tudo pode ser corrigido ali mesmo, inclusive o texto. Use **Não incluir** para tirar uma matéria do e-mail e as setas para mudar a ordem.
+4. Em **E-mails**, para cada área:
+   - **Copiar e-mail para o Outlook** → no Outlook, clique no corpo da mensagem e cole (<kbd>Ctrl</kbd>+<kbd>V</kbd>);
+   - **Abrir no Outlook (Para + Assunto)** cria a mensagem já com destinatários e assunto (depois é só colar o corpo);
+   - **Baixar .html** salva `EMAIL_NOTICIAS_[ÁREA]_DD-MM-AAAA.html`, e **Baixar todos (.zip)** salva os três.
+
+O campo **Para** é preenchido uma vez e fica salvo só no seu navegador (os endereços não vão no código, que é público, nem dentro do e-mail). A lista também fica salva: se fechar a aba sem querer, as matérias continuam lá até você clicar em **Limpar tudo**.
+
+### O e-mail gerado
+
+Segue o modelo do escritório (estilos dentro do próprio HTML, que o Outlook preserva):
+
+- **Assunto** e primeira linha: `Notícias - [Área] - DD.MM.AAAA`, com a data das matérias (a mais frequente; se houver matéria de outro dia, a lista avisa). A data pode ser trocada em cada e-mail.
+- **Sumário** numerado, com link para cada matéria.
+- Para cada matéria: **título** centralizado em negrito, **`Por: autor`** (só quando houver autor; matérias do JOTA e do Migalhas ganham o nome do portal entre parênteses), **texto integral** justificado, um parágrafo por parágrafo da matéria, e **`Link de Acesso:`**.
+- Calibri Light 11 no texto e Calibri nos títulos.
+
+### Como preparar os .txt
+
+Basta copiar a matéria do site e colar num .txt (Bloco de Notas). A ferramenta reconhece sozinha:
+
+- **título**: a primeira linha;
+- **autor**: a linha "Por Fulano de Tal";
+- **link**: a linha que for só um endereço `https://…`, no começo ou no fim (ou `Link de Acesso: https://…`);
+- **data**: a primeira data do cabeçalho ("05/10/2026", "5 de outubro de 2026, 8h05"…);
+- **área**: pelo assunto (termos como ICMS, Carf, CLT, TST, recuperação judicial, sócios…). Quando não dá para ter certeza, a matéria aparece com o aviso **confira a área**.
+
+Botões e créditos copiados junto ("Compartilhar", "WhatsApp", "Spacca"…) são removidos. Para não depender de adivinhação, o .txt pode começar com rótulos (todos opcionais):
+
+```
+Título: STF decide que…
+Autor: Fulano de Tal
+Link: https://www.conjur.com.br/…
+Data: 05/10/2026
+Área: Tributário
+
+(texto integral da matéria)
+```
+
+Outras formas aceitas: pastas com o nome da área (`Tributário/`, `Empresarial/`, `Trabalhista/`), arquivo começando pelo nome da área (`Trabalhista - 01.txt`) e várias matérias num só .txt, separadas por uma linha `=====`. Arquivos em UTF-8, ANSI ou "Unicode" do Bloco de Notas funcionam.
+
+Os avisos da lista ajudam a conferir antes de enviar: **sem link**, **confira a área**, **matéria de outra data** e **texto curto** (quando o .txt parece ter só um trecho da matéria).
+
 ## Para quem for mexer no código
 
 ```
@@ -113,21 +179,24 @@ extensao/            a extensão (Manifest V3)
   comum.js           laço de captura, nomes de arquivo e info.txt (compartilhado com o favorito)
   zip.js             gera o ZIP (sem bibliotecas externas)
   db.js, opcoes.js   armazenamento das capturas e das opções
-  popup.*            janela do ícone
+  popup.*            janela do ícone (abas das ferramentas)
   resultado.*        página com a prévia dos prints e o botão de baixar
+  noticias.*         ferramenta Notícias jurídicas (página)
+  noticias-texto.js  leitura dos .txt, área pelo assunto e montagem do e-mail
+  unzip.js           leitura de .zip e da codificação dos .txt
 script/
   fonte/painel.js    painel da versão sem instalar
   captura-sem-instalar.js, bookmarklet.txt, instalar-favorito.html   gerados (não editar)
 ferramentas/         geradores (script, ícones, pacote da extensão)
-testes/              testes unitários e de ponta a ponta (com páginas de exemplo)
+testes/              testes unitários e de ponta a ponta (páginas e matérias fictícias de exemplo)
 ```
 
 Comandos (precisam do Node.js 20+; os de ponta a ponta precisam do Playwright com Chromium):
 
 ```sh
 npm test            # testes unitários
-npm run e2e         # abre o Chromium com a extensão e captura as páginas de testes/paginas
+npm run e2e         # abre o Chromium com a extensão: captura testes/paginas e monta os e-mails de testes/noticias
 npm run gerar       # regenera script/ depois de mudar extensao/ ou script/fonte/
-npm run empacotar   # gera dist/prints-com-rolagem.zip para distribuir a extensão
+npm run empacotar   # gera dist/ferramentas-fanjas.zip para distribuir a extensão
 node ferramentas/gerar-icones.cjs   # regenera os PNGs a partir de extensao/icones/icone.svg
 ```

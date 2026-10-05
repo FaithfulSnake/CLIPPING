@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Notícias jurídicas – Ferramentas Fanjas</title>
+    <link rel="icon" href="icones/icone-32.png" />
+    <link rel="stylesheet" href="noticias.css" />
+  </head>
+  <body>
+    <header class="topo">
+      <div>
+        <p class="sobre">Ferramentas Fanjas</p>
+        <h1>Notícias jurídicas</h1>
+      </div>
+      <button id="limpar" type="button" class="discreto">Limpar tudo</button>
+    </header>
+
+    <main>
+      <section class="bloco" aria-labelledby="t-entrada">
+        <h2 id="t-entrada">1. Matérias</h2>
+        <div id="soltar" class="soltar" tabindex="0">
+          <p><strong>Solte aqui os arquivos .txt das matérias</strong>, um .zip com eles ou uma pasta inteira.</p>
+          <p class="suave">Cada .txt é uma matéria com o texto integral. A área (Tributário, Empresarial ou Trabalhista) é escolhida pelo assunto, e você pode trocar abaixo.</p>
+          <div class="botoes">
+            <button id="escolher-arquivos" type="button" class="primario">Escolher arquivos</button>
+            <button id="escolher-pasta" type="button">Escolher pasta</button>
+          </div>
+          <input id="arquivos" type="file" accept=".txt,.zip,text/plain,application/zip" multiple hidden />
+          <input id="pasta" type="file" webkitdirectory multiple hidden />
+        </div>
+        <p id="relatorio" class="relatorio" role="status" aria-live="polite"></p>
+
+        <details class="ajuda">
+          <summary>Colar o texto de uma matéria</summary>
+          <textarea id="colar" rows="8" placeholder="Cole aqui o texto inteiro da matéria (várias matérias: separe com uma linha =====)"></textarea>
+          <button id="adicionar-colado" type="button">Adicionar</button>
+        </details>
+
+        <details class="ajuda">
+          <summary>Como preparar o .txt</summary>
+          <p>Basta copiar a matéria do site e colar num .txt. Para não precisar conferir nada, comece o arquivo assim (todas as linhas são opcionais):</p>
+          <pre>Título: STF decide que…
+Autor: Fulano de Tal
+Link: https://www.conjur.com.br/…
+Data: 05/10/2026
+Área: Tributário
+
+(texto integral da matéria)</pre>
+          <p>Sem esses rótulos, a ferramenta usa a 1ª linha como título, a linha “Por Fulano” como autor, a linha que for só um endereço (no começo ou no fim) como link e a primeira data do cabeçalho. Também valem pastas com o nome da área (<code>Tributário/</code>, <code>Trabalhista/</code>…) e várias matérias num só .txt separadas por uma linha <code>=====</code>.</p>
+        </details>
+      </section>
+
+      <section class="bloco" aria-labelledby="t-lista">
+        <div class="titulo-bloco">
+          <h2 id="t-lista">2. Conferir</h2>
+          <p id="resumo-lista" class="suave"></p>
+        </div>
+        <p id="vazio" class="vazio">Nenhuma matéria ainda. Adicione os .txt no passo 1.</p>
+        <ol id="lista" class="lista"></ol>
+      </section>
+
+      <section class="bloco" aria-labelledby="t-emails">
+        <div class="titulo-bloco">
+          <h2 id="t-emails">3. E-mails</h2>
+          <button id="baixar-todos" type="button" hidden>Baixar todos (.zip)</button>
+        </div>
+        <div class="para">
+          <label for="destinatarios">Para (destinatários)</label>
+          <div class="copiavel">
+            <input id="destinatarios" type="text" spellcheck="false" placeholder="fulano@fanjas.com.br; beltrano@fanjas.com.br" />
+            <button type="button" data-copiar="destinatarios">Copiar</button>
+          </div>
+          <p class="suave">Fica salvo só neste navegador. Não vai dentro do e-mail.</p>
+        </div>
+        <div id="emails" class="emails"></div>
+      </section>
+    </main>
+
+    <div id="aviso" class="aviso-flutuante" role="status" aria-live="polite" hidden></div>
+    <script type="module" src="noticias.js"></script>
+  </body>
+</html>

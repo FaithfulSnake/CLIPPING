@@ -1,17 +1,17 @@
 {
   "manifest_version": 3,
-  "name": "Clipping – Prints com rolagem",
-  "short_name": "Prints com rolagem",
-  "version": "1.0.0",
-  "description": "Rola a página do topo ao fim, tira um print de cada trecho e baixa um ZIP com os prints numerados (001, 002…).",
+  "name": "Ferramentas Fanjas",
+  "short_name": "Fanjas",
+  "version": "1.1.0",
+  "description": "Ferramentas do escritório: prints com rolagem (página inteira em ZIP numerado) e e-mails de notícias jurídicas com o texto integral das matérias.",
   "minimum_chrome_version": "116",
-  "permissions": ["activeTab", "scripting", "storage", "unlimitedStorage"],
+  "permissions": ["activeTab", "scripting", "storage", "unlimitedStorage", "clipboardWrite"],
   "background": {
     "service_worker": "background.js",
     "type": "module"
   },
   "action": {
-    "default_title": "Prints com rolagem",
+    "default_title": "Ferramentas Fanjas",
     "default_popup": "popup.html",
     "default_icon": {
       "16": "icones/icone-16.png",

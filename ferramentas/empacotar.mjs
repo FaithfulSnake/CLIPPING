@@ -1,4 +1,4 @@
-// Gera dist/prints-com-rolagem.zip com a pasta da extensão, pronta para
+// Gera dist/ferramentas-fanjas.zip com a pasta da extensão, pronta para
 // descompactar e carregar em chrome://extensions ("Carregar sem compactação").
 // Uso: npm run empacotar
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -8,7 +8,7 @@ import { criarZip } from '../extensao/zip.js';
 
 const raiz = fileURLToPath(new URL('..', import.meta.url));
 const origem = join(raiz, 'extensao');
-const PASTA = 'prints-com-rolagem';
+const PASTA = 'ferramentas-fanjas';
 
 function* arquivos(dir) {
   for (const item of readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {

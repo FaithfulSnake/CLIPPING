@@ -2,73 +2,91 @@
 <html lang="pt-BR">
   <head>
     <meta charset="utf-8" />
-    <title>Prints com rolagem</title>
+    <title>Ferramentas Fanjas</title>
     <link rel="stylesheet" href="popup.css" />
   </head>
   <body>
     <header>
       <img src="icones/icone-32.png" width="24" height="24" alt="" />
-      <h1>Prints com rolagem</h1>
+      <h1>Ferramentas Fanjas</h1>
     </header>
 
-    <section id="tela-config">
-      <label class="campo">
-        <span>Nome da pasta e do ZIP</span>
-        <input id="pasta" type="text" maxlength="100" spellcheck="false" autocomplete="off" />
-      </label>
+    <nav class="abas" role="tablist" aria-label="Ferramentas">
+      <button id="aba-prints" role="tab" type="button" aria-controls="painel-prints" aria-selected="true">Prints com rolagem</button>
+      <button id="aba-noticias" role="tab" type="button" aria-controls="painel-noticias" aria-selected="false" tabindex="-1">Notícias jurídicas</button>
+    </nav>
 
-      <p id="aviso" class="aviso" hidden></p>
+    <div id="painel-prints" role="tabpanel" aria-labelledby="aba-prints">
+      <section id="tela-config">
+        <label class="campo">
+          <span>Nome da pasta e do ZIP</span>
+          <input id="pasta" type="text" maxlength="100" spellcheck="false" autocomplete="off" />
+        </label>
 
-      <button id="iniciar" class="primario" type="button">Iniciar captura</button>
+        <p id="aviso" class="aviso" hidden></p>
 
-      <details>
-        <summary>Opções</summary>
-        <label class="linha">
-          <span>Sobreposição entre prints</span>
-          <span><input id="sobreposicao" type="number" min="0" max="50" step="1" /> %</span>
-        </label>
-        <label class="linha">
-          <span>Espera após cada rolagem</span>
-          <span><input id="espera" type="number" min="200" max="10000" step="100" /> ms</span>
-        </label>
-        <label class="linha">
-          <span>Limite de prints</span>
-          <span><input id="limite" type="number" min="1" max="2000" step="1" /></span>
-        </label>
-        <div class="linha">
-          <span>Formato</span>
-          <span class="radios">
-            <label><input type="radio" name="formato" value="png" /> PNG</label>
-            <label><input type="radio" name="formato" value="jpeg" /> JPEG</label>
-          </span>
-        </div>
-        <label class="check">
-          <input id="esconderFixos" type="checkbox" />
-          <span>Esconder cabeçalhos e rodapés fixos a partir do 2º print</span>
-        </label>
-        <label class="check">
-          <input id="incluirInfo" type="checkbox" />
-          <span>Incluir <code>info.txt</code> com o endereço da página</span>
-        </label>
-        <label class="check">
-          <input id="baixarAuto" type="checkbox" />
-          <span>Baixar o ZIP automaticamente ao terminar</span>
-        </label>
-        <button id="restaurar" class="link" type="button">Voltar às opções padrão</button>
-      </details>
+        <button id="iniciar" class="primario" type="button">Iniciar captura</button>
 
-      <p class="dica">
-        Não troque de aba nem minimize a janela durante a captura (se trocar, ela pausa e continua quando você voltar).
-        <span id="atalho"></span>
-      </p>
-    </section>
+        <details>
+          <summary>Opções</summary>
+          <label class="linha">
+            <span>Sobreposição entre prints</span>
+            <span><input id="sobreposicao" type="number" min="0" max="50" step="1" /> %</span>
+          </label>
+          <label class="linha">
+            <span>Espera após cada rolagem</span>
+            <span><input id="espera" type="number" min="200" max="10000" step="100" /> ms</span>
+          </label>
+          <label class="linha">
+            <span>Limite de prints</span>
+            <span><input id="limite" type="number" min="1" max="2000" step="1" /></span>
+          </label>
+          <div class="linha">
+            <span>Formato</span>
+            <span class="radios">
+              <label><input type="radio" name="formato" value="png" /> PNG</label>
+              <label><input type="radio" name="formato" value="jpeg" /> JPEG</label>
+            </span>
+          </div>
+          <label class="check">
+            <input id="esconderFixos" type="checkbox" />
+            <span>Esconder cabeçalhos e rodapés fixos a partir do 2º print</span>
+          </label>
+          <label class="check">
+            <input id="incluirInfo" type="checkbox" />
+            <span>Incluir <code>info.txt</code> com o endereço da página</span>
+          </label>
+          <label class="check">
+            <input id="baixarAuto" type="checkbox" />
+            <span>Baixar o ZIP automaticamente ao terminar</span>
+          </label>
+          <button id="restaurar" class="link" type="button">Voltar às opções padrão</button>
+        </details>
 
-    <section id="tela-progresso" hidden>
-      <p id="status" class="status" role="status" aria-live="polite">Preparando…</p>
-      <progress id="barra" max="100" value="0"></progress>
-      <button id="parar" type="button">Parar e salvar o que já foi capturado</button>
-      <button id="nova" class="primario" type="button" hidden>Nova captura</button>
-    </section>
+        <p class="dica">
+          Não troque de aba nem minimize a janela durante a captura (se trocar, ela pausa e continua quando você voltar).
+          <span id="atalho"></span>
+        </p>
+      </section>
+
+      <section id="tela-progresso" hidden>
+        <p id="status" class="status" role="status" aria-live="polite">Preparando…</p>
+        <progress id="barra" max="100" value="0"></progress>
+        <button id="parar" type="button">Parar e salvar o que já foi capturado</button>
+        <button id="nova" class="primario" type="button" hidden>Nova captura</button>
+      </section>
+    </div>
+
+    <div id="painel-noticias" role="tabpanel" aria-labelledby="aba-noticias" hidden>
+      <p class="texto">Monta os e-mails de notícias de cada área (Tributário, Empresarial e Trabalhista) com o <strong>texto integral</strong> das matérias, a partir dos arquivos .txt.</p>
+      <ol class="passos">
+        <li>Solte os .txt (ou um .zip ou uma pasta com eles).</li>
+        <li>Confira a área, o título, o autor e o link de cada matéria.</li>
+        <li>Copie o e-mail de cada área e cole no Outlook.</li>
+      </ol>
+      <button id="abrir-noticias" class="primario" type="button">Abrir Notícias jurídicas</button>
+      <p id="noticias-pendentes" class="dica" hidden></p>
+    </div>
 
     <script type="module" src="popup.js"></script>
   </body>

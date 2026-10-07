@@ -18,6 +18,19 @@
         <button id="apagar" type="button" disabled>Apagar</button>
       </div>
     </header>
+    <section class="destino" aria-label="Onde o ZIP está salvo">
+      <div class="destino-salvo">
+        <p id="destino-texto">Preparando o ZIP…</p>
+        <button id="mostrar" type="button" hidden>Mostrar na pasta</button>
+      </div>
+      <div class="destino-pacote">
+        <label for="pacote-select">Pacote</label>
+        <select id="pacote-select"></select>
+        <input id="pacote-novo" type="text" maxlength="60" spellcheck="false" placeholder="Nome do novo pacote" aria-label="Nome do novo pacote" hidden />
+        <button id="mover" type="button">Mover para este pacote</button>
+        <a href="pacotes.html" target="_blank">Gerenciar pacotes</a>
+      </div>
+    </section>
     <p id="aviso" class="aviso" hidden></p>
     <p id="estado" class="estado" role="status" aria-live="polite"></p>
     <main id="grade" class="grade"></main>

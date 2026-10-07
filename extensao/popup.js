@@ -1,11 +1,14 @@
 import { OPCOES_PADRAO, limparNome, normalizarOpcoes } from './comum.js';
 import { lerOpcoes, salvarOpcoes } from './opcoes.js';
+import { caminhoDoZip, criarPacote, guardarEscolha, lerPacotes, pastaDoPacote, sugerirNomePacote } from './pacotes.js';
 
 const $ = (id) => document.getElementById(id);
 const NUMEROS = ['sobreposicao', 'espera', 'limite'];
 const CAIXAS = ['esconderFixos', 'incluirInfo', 'baixarAuto'];
 
 let aba = null;
+let pacotes = [];
+let sugestaoPacote = '';
 
 function preencher(opcoes) {
   for (const campo of NUMEROS) $(campo).value = opcoes[campo];
@@ -101,9 +104,55 @@ function mostrarAba(nome, guardar = true) {
   if (guardar) chrome.storage.local.set({ abaPopup: nome });
 }
 
-// Abre a página de notícias (ou volta para ela, se já estiver aberta).
-async function abrirNoticias() {
-  const url = chrome.runtime.getURL('noticias.html');
+// ---------------------------------------------------------------- pacotes
+
+function desenharPacotes(escolha) {
+  const opcao = (valor, rotulo, detalhe) => {
+    const radio = Object.assign(document.createElement('input'), { type: 'radio', name: 'pacote', value: valor });
+    const texto = Object.assign(document.createElement('span'), { textContent: rotulo });
+    const linha = Object.assign(document.createElement('label'), { className: 'opcao-pacote' });
+    linha.append(radio, texto);
+    if (detalhe) linha.append(Object.assign(document.createElement('small'), { textContent: detalhe }));
+    return linha;
+  };
+  $('pacote-opcoes').replaceChildren(
+    opcao('', 'Sem pacote', 'ZIP solto em Downloads'),
+    ...pacotes.map((p) => opcao(p.id, p.nome, `${p.itens.length} ${p.itens.length === 1 ? 'ZIP' : 'ZIPs'}`)),
+    opcao('novo', 'Novo pacote…'),
+  );
+  const marcado = [...document.querySelectorAll('input[name="pacote"]')].find((r) => r.value === (escolha || ''));
+  (marcado || document.querySelector('input[name="pacote"]')).checked = true;
+  atualizarDestino();
+}
+
+const escolhaPacote = () => document.querySelector('input[name="pacote"]:checked')?.value ?? '';
+
+// Mostra onde o ZIP vai ser salvo, para não haver surpresa.
+function atualizarDestino() {
+  const valor = escolhaPacote();
+  const novo = $('novo-pacote');
+  if (valor === 'novo' && novo.hidden) {
+    novo.hidden = false;
+    novo.value ||= sugestaoPacote;
+    novo.focus();
+    novo.select();
+  } else if (valor !== 'novo') {
+    novo.hidden = true;
+  }
+  const pasta = valor === 'novo' ? pastaDoPacote(novo.value || sugestaoPacote) : pacotes.find((p) => p.id === valor)?.pasta;
+  $('pacote-destino').textContent = `Vai para: Downloads/${caminhoDoZip(pasta, $('pasta').value || aba?.title)}`;
+}
+
+// Pacote escolhido; "Novo pacote…" é criado agora (ou reaproveitado, se o nome já existe).
+async function resolverPacote() {
+  const valor = escolhaPacote();
+  if (valor === 'novo') return (await criarPacote($('novo-pacote').value.trim() || sugestaoPacote)).id;
+  return valor || null;
+}
+
+// Abre uma página da extensão (ou volta para ela, se já estiver aberta).
+async function abrirPagina(arquivo) {
+  const url = chrome.runtime.getURL(arquivo);
   try {
     const [aberta] = await chrome.runtime.getContexts({ contextTypes: ['TAB'], documentUrls: [url] });
     if (aberta?.tabId >= 0) {
@@ -120,12 +169,13 @@ async function abrirNoticias() {
 }
 
 async function main() {
-  const [opcoes, abas, status, comandos, guardado] = await Promise.all([
+  const [opcoes, abas, status, comandos, guardado, dadosPacotes] = await Promise.all([
     lerOpcoes(),
     chrome.tabs.query({ active: true, currentWindow: true }),
     enviar({ tipo: 'status' }),
     chrome.commands.getAll(),
     chrome.storage.local.get(['abaPopup', 'noticias']),
+    lerPacotes(),
   ]);
   mostrarAba(status?.ativo ? 'prints' : guardado.abaPopup || 'prints', false);
   const pendentes = guardado.noticias?.materias?.length || 0;
@@ -136,6 +186,9 @@ async function main() {
   aba = abas[0];
   preencher(opcoes);
   $('pasta').value = limparNome(aba?.title);
+  pacotes = dadosPacotes.lista;
+  sugestaoPacote = sugerirNomePacote(aba?.url);
+  desenharPacotes(dadosPacotes.escolha);
 
   const atalho = comandos.find((c) => c.name === 'iniciar-captura')?.shortcut;
   if (atalho) {
@@ -165,8 +218,10 @@ $('iniciar').addEventListener('click', async () => {
   await salvarOpcoes(opcoes);
   const pasta = limparNome($('pasta').value || aba?.title);
   $('pasta').value = pasta;
+  const pacoteId = await resolverPacote();
+  await guardarEscolha(pacoteId);
   mostrarStatus({ ativo: true, estado: 'capturando', total: 0, porcento: 0 });
-  const resposta = await enviar({ tipo: 'iniciar', tabId: aba.id, pasta, opcoes });
+  const resposta = await enviar({ tipo: 'iniciar', tabId: aba.id, pasta, opcoes, pacoteId });
   if (resposta?.erro) {
     mostrarConfig();
     mostrarAviso(resposta.erro, 'erro');
@@ -189,7 +244,14 @@ document.querySelector('.abas').addEventListener('keydown', (ev) => {
   mostrarAba(proxima);
   $(`aba-${proxima}`).focus();
 });
-$('abrir-noticias').addEventListener('click', abrirNoticias);
+$('abrir-noticias').addEventListener('click', () => abrirPagina('noticias.html'));
+$('abrir-pacotes').addEventListener('click', () => abrirPagina('pacotes.html'));
+$('pacote-opcoes').addEventListener('change', atualizarDestino);
+$('novo-pacote').addEventListener('input', atualizarDestino);
+$('pasta').addEventListener('input', atualizarDestino);
+$('novo-pacote').addEventListener('keydown', (ev) => {
+  if (ev.key === 'Enter' && !$('iniciar').disabled) $('iniciar').click();
+});
 
 $('restaurar').addEventListener('click', async () => {
   preencher(OPCOES_PADRAO);

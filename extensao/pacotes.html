@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Pacotes de prints – Ferramentas Fanjas</title>
+    <link rel="icon" href="icones/icone-32.png" />
+    <link rel="stylesheet" href="pacotes.css" />
+  </head>
+  <body>
+    <header class="topo">
+      <div>
+        <p class="sobre">Ferramentas Fanjas · Prints com rolagem</p>
+        <h1>Pacotes de prints</h1>
+      </div>
+      <button id="novo" type="button" class="primario">Novo pacote</button>
+    </header>
+
+    <main>
+      <p class="explica">
+        Cada pacote é uma pasta dentro de <strong>Downloads</strong>. Antes de iniciar uma captura, escolha o pacote no
+        popup da extensão: o ZIP vai direto para a pasta dele.
+      </p>
+
+      <form id="form-novo" class="form-novo" hidden>
+        <label for="novo-nome">Nome do pacote</label>
+        <div class="linha-form">
+          <input id="novo-nome" type="text" maxlength="60" spellcheck="false" autocomplete="off" required />
+          <button type="submit" class="primario">Criar</button>
+          <button id="cancelar-novo" type="button">Cancelar</button>
+        </div>
+        <p id="novo-destino" class="suave"></p>
+      </form>
+
+      <p id="vazio" class="vazio" hidden>
+        Nenhum pacote ainda. Crie um aqui ou escolha “Novo pacote…” no popup antes de iniciar uma captura.
+      </p>
+      <div id="lista" class="lista"></div>
+    </main>
+
+    <div id="aviso" class="aviso-flutuante" role="status" aria-live="polite" hidden></div>
+    <script type="module" src="gerenciador.js"></script>
+  </body>
+</html>

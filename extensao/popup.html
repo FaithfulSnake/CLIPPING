@@ -23,6 +23,14 @@
           <input id="pasta" type="text" maxlength="100" spellcheck="false" autocomplete="off" />
         </label>
 
+        <fieldset class="pacote">
+          <legend>Pacote</legend>
+          <div id="pacote-opcoes" class="pacote-opcoes"></div>
+          <input id="novo-pacote" type="text" maxlength="60" spellcheck="false" autocomplete="off" aria-label="Nome do novo pacote" hidden />
+          <p id="pacote-destino" class="destino"></p>
+          <button id="abrir-pacotes" class="link" type="button">Gerenciar pacotes</button>
+        </fieldset>
+
         <p id="aviso" class="aviso" hidden></p>
 
         <button id="iniciar" class="primario" type="button">Iniciar captura</button>

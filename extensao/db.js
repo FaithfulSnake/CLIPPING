@@ -45,13 +45,6 @@ export const apagarSessao = (id) =>
     tx.objectStore('prints').delete(printsDa(id));
   });
 
-export const marcarBaixado = (id) =>
-  transacao('sessoes', 'readwrite', (tx) => {
-    const loja = tx.objectStore('sessoes');
-    const req = loja.get(id);
-    req.onsuccess = () => req.result && loja.put({ ...req.result, baixado: true });
-  });
-
 // Mantém só as capturas mais recentes, para não acumular espaço em disco.
 export async function apagarAntigas(manter) {
   const sessoes = await transacao('sessoes', 'readonly', (tx) => tx.objectStore('sessoes').getAll());

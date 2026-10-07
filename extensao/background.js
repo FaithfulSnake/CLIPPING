@@ -1,6 +1,7 @@
 import { capturarComRolagem, limparNome, normalizarOpcoes } from './comum.js';
 import { apagarAntigas, salvarPrint, salvarSessao } from './db.js';
 import { lerOpcoes } from './opcoes.js';
+import { lerPacotes, referencia } from './pacotes.js';
 
 // Captura em andamento (só uma por vez).
 let tarefa = null;
@@ -105,10 +106,11 @@ async function dimensoes(blob) {
   return d;
 }
 
-async function iniciar(tabId, pasta, opcoesRecebidas) {
+async function iniciar(tabId, pasta, opcoesRecebidas, pacoteId = null) {
   if (tarefa?.ativo) return { erro: 'Já existe uma captura em andamento.' };
   const opcoes = normalizarOpcoes(opcoesRecebidas);
   const aba = await chrome.tabs.get(tabId);
+  const pacote = pacoteId ? (await lerPacotes()).lista.find((p) => p.id === pacoteId) : null;
   try {
     await chrome.scripting.executeScript({ target: { tabId }, files: ['pagina.js'] });
   } catch (e) {
@@ -125,6 +127,7 @@ async function iniciar(tabId, pasta, opcoesRecebidas) {
     mensagem: '',
     parar: false,
     opcoes,
+    pacote: referencia(pacote),
   };
   executar(tarefa, aba, limparNome(pasta || aba.title));
   return { ok: true };
@@ -142,6 +145,7 @@ async function executar(t, aba, pasta) {
     sobreposicao: t.opcoes.sobreposicao,
     incluirInfo: t.opcoes.incluirInfo,
     baixarAuto: t.opcoes.baixarAuto,
+    pacote: t.pacote,
     motivo: 'capturando',
     medidas: [],
   };
@@ -220,7 +224,7 @@ async function executar(t, aba, pasta) {
 chrome.runtime.onMessage.addListener((msg, _remetente, responder) => {
   switch (msg?.tipo) {
     case 'iniciar':
-      iniciar(msg.tabId, msg.pasta, msg.opcoes).then(responder, (e) => responder({ erro: descreverErro(e) }));
+      iniciar(msg.tabId, msg.pasta, msg.opcoes, msg.pacoteId).then(responder, (e) => responder({ erro: descreverErro(e) }));
       return true;
     case 'status':
       responder(status());
@@ -234,14 +238,15 @@ chrome.runtime.onMessage.addListener((msg, _remetente, responder) => {
   }
 });
 
-// Atalho de teclado: inicia com as últimas opções usadas; apertar de novo para.
+// Atalho de teclado: inicia com as últimas opções e o último pacote escolhido;
+// apertar de novo para.
 chrome.commands.onCommand.addListener(async (comando, aba) => {
   if (comando !== 'iniciar-captura' || !aba?.id) return;
   if (tarefa?.ativo) {
     tarefa.parar = true;
     return;
   }
-  const resposta = await iniciar(aba.id, aba.title, await lerOpcoes());
+  const resposta = await iniciar(aba.id, aba.title, await lerOpcoes(), (await lerPacotes()).escolha);
   if (resposta?.erro) {
     tarefa = { ativo: false, estado: 'erro', total: 0, porcento: 0, mensagem: resposta.erro, tabId: aba.id };
     selo('ERR', '#dc2626');

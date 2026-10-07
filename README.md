@@ -63,11 +63,30 @@ O nome da pasta vem preenchido com o título da página e pode ser trocado antes
 ### Usar
 
 1. Abra a página que vai transcrever (faça login antes, se precisar).
-2. Clique no ícone da extensão, na aba **Prints com rolagem**, confira o **nome da pasta** e clique em **Iniciar captura**.
-3. Não troque de aba nem minimize a janela até terminar. Se trocar, a captura pausa e continua quando você voltar.
+2. Clique no ícone da extensão, na aba **Prints com rolagem**, confira o **nome da pasta** e escolha o **pacote** (veja abaixo).
+3. Clique em **Iniciar captura**. Não troque de aba nem minimize a janela até terminar. Se trocar, a captura pausa e continua quando você voltar.
 4. Ao terminar, abre uma aba com a prévia de todos os prints e o ZIP é baixado sozinho (o botão **Baixar ZIP** baixa de novo).
 
-**Atalho:** <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd> inicia com as últimas opções usadas; apertar de novo para e salva o que já foi capturado. Para trocar a tecla: `chrome://extensions/shortcuts`.
+**Atalho:** <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd> inicia com as últimas opções e o último pacote escolhido; apertar de novo para e salva o que já foi capturado. Para trocar a tecla: `chrome://extensions/shortcuts`.
+
+### Pacotes de prints
+
+Para juntar os ZIPs de várias matérias (por exemplo, todas as de um site no mesmo dia), use **pacotes**. Cada pacote é uma pasta dentro de Downloads:
+
+```
+Downloads/
+└── STF outubro/            ← o pacote
+    ├── Matéria 1.zip
+    ├── Matéria 2.zip
+    └── …
+```
+
+- **Antes de cada captura**, o popup pergunta o **pacote**: *Sem pacote* (o ZIP fica solto em Downloads, como antes), um dos pacotes que já existem (com quantos ZIPs cada um tem) ou **Novo pacote…**, que já sugere um nome com o site e a data (“ConJur 07-10-2026”). Embaixo aparece o caminho exato: “Vai para: Downloads/STF outubro/Matéria 1.zip”.
+- A escolha fica marcada para a próxima captura, então na sequência de matérias do mesmo site é só clicar em **Iniciar captura**.
+- **Depois de baixar**, a página do resultado mostra onde o ZIP foi salvo (**Mostrar na pasta** abre o Explorador com o arquivo selecionado) e deixa **mover o ZIP para outro pacote** (ou criar um novo ali mesmo). A cópia que ficou no lugar antigo é apagada.
+- **Gerenciar pacotes** (no popup ou no resultado) abre a lista de pacotes: os ZIPs de cada um, se ainda estão na pasta, **Abrir pasta**, **Mostrar na pasta**, **Ver prints** (das 5 capturas mais recentes), **Tirar do pacote**, **Usar na próxima captura** e **Excluir**. Tirar e excluir só mexem na lista; os arquivos continuam em Downloads.
+
+> Se o Chrome estiver configurado para **perguntar onde salvar cada arquivo**, ele vai abrir a janela de salvar a cada ZIP. Para os pacotes funcionarem sozinhos, desligue essa opção em `chrome://settings/downloads`.
 
 ### Opções (no popup, em "Opções")
 
@@ -163,7 +182,7 @@ Os avisos da lista ajudam a conferir antes de enviar: **sem link**, **confira a 
 
 ### Permissões da extensão
 
-Além do necessário para os prints, a extensão pede para **ler a área de transferência** (botão "Colar") e **ver os títulos e endereços das abas abertas** (para achar o link da matéria sozinha). Nada sai do seu computador.
+Além do necessário para os prints, a extensão pede para **gerenciar downloads** (salvar os ZIPs na pasta do pacote e mostrá-los na pasta), **ler a área de transferência** (botão "Colar" das notícias) e **ver os títulos e endereços das abas abertas** (para achar o link da matéria sozinha). Nada sai do seu computador.
 
 ## Para quem for mexer no código
 
@@ -175,8 +194,10 @@ extensao/            a extensão (Manifest V3)
   comum.js           laço de captura, nomes de arquivo e info.txt (compartilhado com o favorito)
   zip.js             gera o ZIP (sem bibliotecas externas)
   db.js, opcoes.js   armazenamento das capturas e das opções
-  popup.*            janela do ícone (abas das ferramentas)
-  resultado.*        página com a prévia dos prints e o botão de baixar
+  popup.*            janela do ícone (abas das ferramentas e escolha do pacote)
+  resultado.*        página com a prévia dos prints, onde o ZIP foi salvo e mover de pacote
+  pacotes.js         pacotes de prints: nomes de pasta aceitos pelo Chrome e a lista guardada
+  pacotes.html/.css, gerenciador.js   página "Pacotes de prints"
   noticias.html/.css página da ferramenta Notícias jurídicas
   noticias.js        página: colar, lista, prévia, copiar (fonte do noticias-pagina.js)
   noticias-pagina.js gerado: script único da página (funciona até aberta direto do arquivo)
@@ -194,7 +215,7 @@ Comandos (precisam do Node.js 20+; os de ponta a ponta precisam do Playwright co
 
 ```sh
 npm test            # testes unitários
-npm run e2e         # abre o Chromium com a extensão: captura testes/paginas e monta os e-mails de testes/noticias
+npm run e2e         # abre o Chromium com a extensão: captura testes/paginas (inclusive em pacotes) e monta os e-mails de testes/noticias
 npm run gerar       # regenera os arquivos gerados depois de mudar extensao/ ou script/fonte/
 npm run empacotar   # gera dist/ferramentas-fanjas.zip para distribuir a extensão
 node ferramentas/gerar-icones.cjs   # regenera os PNGs a partir de extensao/icones/icone.svg

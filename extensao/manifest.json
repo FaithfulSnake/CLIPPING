@@ -2,10 +2,10 @@
   "manifest_version": 3,
   "name": "Ferramentas Fanjas",
   "short_name": "Fanjas",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Ferramentas do escritório: prints com rolagem (página inteira em ZIP numerado) e e-mails de notícias jurídicas com o texto integral das matérias.",
   "minimum_chrome_version": "116",
-  "permissions": ["activeTab", "scripting", "storage", "unlimitedStorage", "clipboardWrite", "clipboardRead", "tabs"],
+  "permissions": ["activeTab", "scripting", "storage", "unlimitedStorage", "clipboardWrite", "clipboardRead", "tabs", "downloads"],
   "background": {
     "service_worker": "background.js",
     "type": "module"

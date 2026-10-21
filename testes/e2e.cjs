@@ -1,7 +1,8 @@
 // Teste de ponta a ponta: abre o Chromium com a extensão, captura as páginas
 // de testes/paginas e confere os ZIPs salvos na pasta Downloads (com as
 // pastas dos pacotes), a ferramenta de notícias e a versão sem instalar.
-// Uso: npm run e2e. Variável SALVAR_PRINTS=pasta guarda os ZIPs para conferir à mão.
+// Uso: npm run e2e. Variável SALVAR_PRINTS=pasta guarda os ZIPs para conferir à mão;
+// SO=nome1,nome2 roda só alguns blocos.
 const assert = require('node:assert/strict');
 const { execFileSync } = require('node:child_process');
 const fs = require('node:fs');
@@ -11,6 +12,9 @@ const path = require('node:path');
 const { carregarPlaywright } = require('../ferramentas/playwright.cjs');
 
 const RAIZ = path.join(__dirname, '..');
+// SO=pacotes,seletor roda só os blocos com esses nomes.
+const SO = process.env.SO ? process.env.SO.split(',') : null;
+const rodar = (nome) => !SO || SO.some((s) => nome.includes(s.trim()));
 const LARGURA = 1280;
 const ALTURA = 720;
 
@@ -227,7 +231,7 @@ async function main() {
       { nome: 'página curta', arquivo: 'curta.html', total: 1 },
     ];
 
-    for (const caso of casos) {
+    for (const caso of casos.filter(() => rodar('capturas'))) {
       try {
         limparDownloads();
         const r = await capturar(caso.arquivo, caso.opcoes);
@@ -260,47 +264,196 @@ async function main() {
       }
     }
 
-    // Pacotes: escolher no popup antes da captura; o ZIP vai para Downloads/<pacote>/.
-    try {
+    // O popup de verdade abre sobre a aba da página; aqui ele abre numa janela
+    // própria, então a "aba ativa" que ele consulta é trocada pela da página.
+    const erros = [];
+    const popupPara = async (tabId) => {
+      const [popup] = await Promise.all([
+        contexto.waitForEvent('page', (p) => p.url() === 'about:blank'),
+        sw.evaluate(() => chrome.windows.create({ url: 'about:blank' })),
+      ]);
+      popup.on('pageerror', (e) => erros.push(e.message));
+      await popup.addInitScript((id) => {
+        if (!location.pathname.endsWith('/popup.html')) return;
+        const consultar = chrome.tabs.query.bind(chrome.tabs);
+        chrome.tabs.query = (filtro, ...resto) =>
+          filtro?.active && filtro?.currentWindow ? chrome.tabs.get(id).then((aba) => [aba]) : consultar(filtro, ...resto);
+      }, tabId);
+      await popup.goto(`chrome-extension://${idExtensao}/popup.html`);
+      await popup.waitForFunction(() => document.querySelectorAll('input[name="pacote"]').length >= 2);
+      return popup;
+    };
+    const abrirAlvo = async (arquivo) => {
+      const pagina = await contexto.newPage();
+      pagina.on('pageerror', (e) => erros.push(e.message));
+      await pagina.goto(`${base}/${arquivo}`);
+      const tabId = await sw.evaluate(async (url) => (await chrome.tabs.query({ url })).at(-1).id, pagina.url());
+      return { pagina, tabId };
+    };
+    const esperarResultado = () => contexto.waitForEvent('page', { predicate: (p) => p.url().includes('/resultado.html'), timeout: 120_000 });
+    const iniciarPeloPopup = async (popup) => {
+      const [resultado] = await Promise.all([esperarResultado(), popup.click('#iniciar')]);
+      resultado.on('pageerror', (e) => erros.push(e.message));
+      return resultado;
+    };
+    const dadosDaSessao = (resultado) =>
+      resultado.evaluate(async () => {
+        const { lerSessao } = await import('./db.js');
+        return lerSessao(new URLSearchParams(location.search).get('sessao'));
+      });
+    // Espera um arquivo de texto em Downloads ficar com o conteúdo esperado.
+    const esperarTexto = async (relativo, padrao, tempo = 20_000) => {
+      const alvo = path.join(downloads, relativo);
+      let texto = '';
+      for (const fim = Date.now() + tempo; Date.now() < fim; await new Promise((r) => setTimeout(r, 200))) {
+        texto = fs.existsSync(alvo) ? fs.readFileSync(alvo, 'utf8').replace(/^﻿/, '') : '';
+        if (padrao.test(texto)) return texto;
+      }
+      throw new Error(`${relativo} não ficou como esperado (${padrao}): ${texto || 'não existe'}`);
+    };
+    const dpr = await controle.evaluate(() => devicePixelRatio);
+
+    // Configurações: o que muda na tela vale para a captura, mas só fica gravado ao clicar em Salvar.
+    if (rodar('configurações')) try {
+      const alvo = await abrirAlvo('curta.html');
+      const popup = await popupPara(alvo.tabId);
+      const marcado = (nome) => popup.$eval(`input[name="${nome}"]:checked`, (r) => r.value);
+      const gravadas = () => popup.evaluate(async () => (await chrome.storage.local.get('opcoes')).opcoes ?? null);
+      assert.equal(await marcado('areaRolagem'), 'auto', 'rolagem automática por padrão');
+      assert.equal(await marcado('recorte'), 'tela', 'tela inteira por padrão');
+      assert.equal(await popup.isDisabled('#salvar'), true);
+      await popup.click('#configuracoes summary');
+      await popup.check('input[name="recorte"][value="area"]');
+      assert.equal(await popup.isVisible('#nao-salvas'), true);
+      assert.equal(await popup.isEnabled('#salvar'), true);
+      assert.match(await popup.textContent('#situacao-config'), /não salvas/);
+      await popup.reload();
+      await popup.waitForFunction(() => document.querySelectorAll('input[name="pacote"]').length >= 2);
+      assert.equal(await marcado('recorte'), 'tela', 'sem Salvar, nada é gravado');
+      assert.equal(await gravadas(), null);
+
+      await popup.click('#configuracoes summary');
+      await popup.check('input[name="areaRolagem"][value="escolher"]');
+      assert.match(await popup.textContent('#dica-escolha'), /clicar na parte que deve rolar/);
+      await popup.fill('#espera', '450');
+      await popup.click('#salvar');
+      assert.equal(await popup.textContent('#situacao-config'), 'Configurações salvas.');
+      assert.equal(await popup.isHidden('#nao-salvas'), true);
+      assert.equal(await popup.isDisabled('#salvar'), true);
+      assert.deepEqual([(await gravadas()).areaRolagem, (await gravadas()).espera, (await gravadas()).recorte], ['escolher', 450, 'tela']);
+      await popup.reload();
+      await popup.waitForFunction(() => document.querySelectorAll('input[name="pacote"]').length >= 2);
+      assert.equal(await marcado('areaRolagem'), 'escolher');
+
+      // "Voltar às opções padrão" só põe o padrão na tela; o Salvar grava.
+      await popup.click('#configuracoes summary');
+      await popup.click('#restaurar');
+      assert.equal(await marcado('areaRolagem'), 'auto');
+      assert.equal(await popup.isVisible('#nao-salvas'), true);
+      assert.equal((await gravadas()).areaRolagem, 'escolher');
+      await popup.click('#salvar');
+      assert.deepEqual([(await gravadas()).areaRolagem, (await gravadas()).espera, (await gravadas()).recorte], ['auto', 700, 'tela']);
+      assert.deepEqual(erros, []);
+      console.log('ok   configurações: novas opções desligadas por padrão e gravadas só com Salvar');
+      await popup.close();
+      await alvo.pagina.close();
+    } catch (e) {
+      falhas.push('configurações');
+      console.log(`FALHA configurações\n${e.stack}`);
+    }
+
+    // Seletor: clicar na coluna da direita (que rola sozinha) e capturar só ela.
+    if (rodar('seletor')) try {
       limparDownloads();
-      await controle.close();
-      const erros = [];
-      // O popup de verdade abre sobre a aba da página; aqui ele abre numa janela
-      // própria, então a "aba ativa" que ele consulta é trocada pela da página.
-      const popupPara = async (tabId) => {
-        const [popup] = await Promise.all([
-          contexto.waitForEvent('page', (p) => p.url() === 'about:blank'),
-          sw.evaluate(() => chrome.windows.create({ url: 'about:blank' })),
-        ]);
-        popup.on('pageerror', (e) => erros.push(e.message));
-        await popup.addInitScript((id) => {
-          if (!location.pathname.endsWith('/popup.html')) return;
-          const consultar = chrome.tabs.query.bind(chrome.tabs);
-          chrome.tabs.query = (filtro, ...resto) =>
-            filtro?.active && filtro?.currentWindow ? chrome.tabs.get(id).then((aba) => [aba]) : consultar(filtro, ...resto);
-        }, tabId);
-        await popup.goto(`chrome-extension://${idExtensao}/popup.html`);
-        await popup.waitForFunction(() => document.querySelectorAll('input[name="pacote"]').length >= 2);
-        return popup;
-      };
-      const abrirAlvo = async (arquivo) => {
-        const pagina = await contexto.newPage();
-        await pagina.goto(`${base}/${arquivo}`);
-        const tabId = await sw.evaluate(async (url) => (await chrome.tabs.query({ url })).at(-1).id, pagina.url());
-        return { pagina, tabId };
-      };
-      const iniciarPeloPopup = async (popup) => {
-        const [resultado] = await Promise.all([
-          contexto.waitForEvent('page', { predicate: (p) => p.url().includes('/resultado.html'), timeout: 120_000 }),
-          popup.click('#iniciar'),
-        ]);
-        resultado.on('pageerror', (e) => erros.push(e.message));
-        return resultado;
-      };
+      const alvo = await abrirAlvo('lateral.html');
+      const resposta = await controle.evaluate(
+        (tabId) => chrome.runtime.sendMessage({ tipo: 'iniciar', tabId, pasta: 'Coluna lateral', opcoes: { espera: 300, areaRolagem: 'escolher', recorte: 'area' } }),
+        alvo.tabId,
+      );
+      assert.deepEqual(resposta, { ok: true, escolhendo: true });
+      await alvo.pagina.bringToFront();
+      await alvo.pagina.waitForSelector('#clipping-seletor');
+      const coluna = await alvo.pagina.evaluate(() => {
+        const t = document.getElementById('texto');
+        return { largura: t.clientWidth, altura: t.clientHeight, total: t.scrollHeight };
+      });
+      await alvo.pagina.mouse.move(1000, 400);
+      const [resultado] = await Promise.all([esperarResultado(), alvo.pagina.mouse.click(1000, 400)]);
+      const zip = await esperarArquivo('Coluna lateral.zip');
+      guardar(zip, 'coluna-lateral.zip');
+      const itens = lerZip(zip);
+      const prints = itens.filter((i) => i.nome.endsWith('.png'));
+      const sessao = await dadosDaSessao(resultado);
+      assert.ok(prints.length >= 5, `${prints.length} prints`);
+      assert.equal(prints.length, sessao.total);
+      for (const p of prints) {
+        assert.ok(Math.abs(p.tamanho[0] - coluna.largura * dpr) <= 1 && Math.abs(p.tamanho[1] - coluna.altura * dpr) <= 1, `print ${p.tamanho} do tamanho da coluna`);
+      }
+      conferirCobertura(sessao.medidas, coluna.total);
+      assert.equal(sessao.motivo, 'fim');
+      assert.match(itens.find((i) => i.nome.endsWith('info.txt')).texto, /Área do print: só uma parte da tela/);
+      const depois = await alvo.pagina.evaluate(() => ({
+        rolagens: [document.getElementById('indice').scrollTop, document.getElementById('texto').scrollTop],
+        seletor: document.querySelectorAll('#clipping-seletor').length,
+      }));
+      assert.deepEqual(depois, { rolagens: [0, 0], seletor: 0 });
+      assert.deepEqual(erros, []);
+      console.log(`ok   seletor: coluna da direita escolhida na página, ${prints.length} prints de ${prints[0].tamanho.join('x')}`);
+      await resultado.close();
+      await alvo.pagina.close();
+    } catch (e) {
+      falhas.push('seletor');
+      console.log(`FALHA seletor\n${e.stack}`);
+    }
+
+    // Recorte: marcar uma região da tela; cada print é só ela, rolando até o fim.
+    if (rodar('região')) try {
+      limparDownloads();
+      const alvo = await abrirAlvo('artigo.html');
+      const resposta = await controle.evaluate(
+        (tabId) => chrome.runtime.sendMessage({ tipo: 'iniciar', tabId, pasta: 'Região marcada', opcoes: { espera: 300, recorte: 'regiao' } }),
+        alvo.tabId,
+      );
+      assert.deepEqual(resposta, { ok: true, escolhendo: true });
+      await alvo.pagina.bringToFront();
+      await alvo.pagina.waitForSelector('#clipping-seletor');
+      await alvo.pagina.mouse.move(100, 150);
+      await alvo.pagina.mouse.down();
+      await alvo.pagina.mouse.move(700, 500, { steps: 8 });
+      await alvo.pagina.mouse.up();
+      const [resultado] = await Promise.all([esperarResultado(), alvo.pagina.keyboard.press('Enter')]);
+      const zip = await esperarArquivo('Região marcada.zip');
+      guardar(zip, 'regiao-marcada.zip');
+      const prints = lerZip(zip).filter((i) => i.nome.endsWith('.png'));
+      const sessao = await dadosDaSessao(resultado);
+      assert.ok(prints.length > 10, `${prints.length} prints`);
+      for (const p of prints) assert.deepEqual(p.tamanho, [600 * dpr, 350 * dpr]);
+      assert.equal(sessao.motivo, 'fim');
+      for (const [i, m] of sessao.medidas.entries()) {
+        const a = sessao.medidas[i - 1];
+        if (a) assert.ok(m.topo + m.ocupadoTopo <= a.topo + a.altura - a.ocupadoBase, `buraco entre os prints ${i} e ${i + 1}`);
+      }
+      assert.ok(sessao.medidas.at(-1).topo >= sessao.medidas.at(-1).max - 1, 'rolou até o fim');
+      assert.ok(sessao.medidas.at(-1).max > 150 * 40, 'carregou as linhas extras do fim');
+      assert.deepEqual(erros, []);
+      console.log(`ok   região marcada: ${prints.length} prints de ${prints[0].tamanho.join('x')}`);
+      await resultado.close();
+      await alvo.pagina.close();
+    } catch (e) {
+      falhas.push('região marcada');
+      console.log(`FALHA região marcada\n${e.stack}`);
+    }
+
+    // Pacotes na pasta Downloads: escolhidos no popup antes da captura, cada
+    // pacote é uma pasta com os ZIPs numerados e o "Índice do pacote.txt".
+    if (rodar('pacotes')) try {
+      limparDownloads();
       const opcoesDoPopup = (popup) =>
         popup.$$eval('.opcao-pacote', (linhas) =>
           linhas.map((l) => ({ nome: l.querySelector('span').textContent, detalhe: l.querySelector('small')?.textContent || '', marcado: l.querySelector('input').checked })),
         );
+      const salvo = (resultado) => resultado.waitForFunction(() => document.getElementById('destino-texto').textContent.startsWith('Salvo'));
+      const INDICE_STF = 'STF outubro/Índice do pacote.txt';
 
       // 1ª matéria: ainda não há pacotes; cria "STF outubro" no próprio popup.
       const alvo1 = await abrirAlvo('curta.html');
@@ -312,15 +465,18 @@ async function main() {
       await popup1.click('text=Novo pacote…');
       assert.match(await popup1.inputValue('#novo-pacote'), /^127\.0\.0\.1 \d{2}-\d{2}-\d{4}$/, 'sugere site e data');
       await popup1.fill('#novo-pacote', 'STF outubro');
-      assert.equal(await popup1.textContent('#pacote-destino'), 'Vai para: Downloads/STF outubro/Página curta.zip');
+      assert.equal(await popup1.textContent('#pacote-destino'), 'Vai para: Downloads/STF outubro/01 - Página curta.zip');
       const resultado1 = await iniciarPeloPopup(popup1);
-      await esperarArquivo('STF outubro/Página curta.zip');
-      await resultado1.waitForFunction(() => document.getElementById('destino-texto').textContent.startsWith('Salvo em'));
-      assert.equal(await resultado1.textContent('#destino-texto'), 'Salvo em Downloads/STF outubro/Página curta.zip');
+      const zip1 = await esperarArquivo('STF outubro/01 - Página curta.zip');
+      await salvo(resultado1);
+      assert.equal(await resultado1.textContent('#destino-texto'), 'Salvo no pacote “STF outubro”: Downloads/STF outubro/01 - Página curta.zip');
+      assert.match(await resultado1.textContent('#estado'), /ZIP nº 1 do pacote “STF outubro”/);
+      assert.match(lerZip(zip1).find((i) => i.nome.endsWith('info.txt')).texto, /\r\nPacote: STF outubro\r\n/);
+      assert.match(await esperarTexto(INDICE_STF, /Matérias: 1\r\n/), /^Pacote: STF outubro\r\n[\s\S]*\r\n01 - Página curta\.zip\r\n {4}Página: Página curta\r\n/);
       await popup1.close();
       await resultado1.close();
 
-      // 2ª matéria do mesmo site: o popup já vem com o pacote marcado.
+      // 2ª matéria do mesmo site: o popup já vem com o pacote marcado e o número segue.
       const alvo2 = await abrirAlvo('materia.html');
       const popup2 = await popupPara(alvo2.tabId);
       assert.deepEqual(await opcoesDoPopup(popup2), [
@@ -328,66 +484,93 @@ async function main() {
         { nome: 'STF outubro', detalhe: '1 ZIP', marcado: true },
         { nome: 'Novo pacote…', detalhe: '', marcado: false },
       ]);
-      const nome2 = 'Juíza reconhece créditos de PIS e Cofins sobre fretes de exportação - ConJur.zip';
+      const titulo2 = 'Juíza reconhece créditos de PIS e Cofins sobre fretes de exportação - ConJur';
+      assert.equal(await popup2.textContent('#pacote-destino'), `Vai para: Downloads/STF outubro/02 - ${titulo2}.zip`);
       const resultado2 = await iniciarPeloPopup(popup2);
-      await esperarArquivo(`STF outubro/${nome2}`);
+      await esperarArquivo(`STF outubro/02 - ${titulo2}.zip`);
+      await esperarTexto(INDICE_STF, /Matérias: 2\r\n[\s\S]*01 - Página curta\.zip[\s\S]*02 - Juíza/);
       await popup2.close();
 
-      // Na página do resultado: mover o ZIP para um pacote novo.
-      await resultado2.waitForFunction(() => document.getElementById('destino-texto').textContent.startsWith('Salvo em'));
+      // No resultado: mover o ZIP para um pacote novo; ele sai do pacote anterior.
+      await salvo(resultado2);
       await resultado2.selectOption('#pacote-select', 'novo');
       await resultado2.fill('#pacote-novo', 'Outro pacote');
       await resultado2.click('#mover');
-      await esperarArquivo(`Outro pacote/${nome2}`);
-      await esperarSumir(`STF outubro/${nome2}`);
+      await esperarArquivo(`Outro pacote/01 - ${titulo2}.zip`);
+      await esperarSumir(`STF outubro/02 - ${titulo2}.zip`);
       await resultado2.waitForFunction(() => /cópia que estava no lugar anterior foi apagada/.test(document.getElementById('estado').textContent));
-      assert.equal(await resultado2.textContent('#destino-texto'), `Salvo em Downloads/Outro pacote/${nome2}`);
-      assert.deepEqual(listar(downloads).sort(), [`Outro pacote/${nome2}`, 'STF outubro/Página curta.zip']);
+      assert.equal(await resultado2.textContent('#destino-texto'), `Salvo no pacote “Outro pacote”: Downloads/Outro pacote/01 - ${titulo2}.zip`);
+      await esperarTexto(INDICE_STF, /Matérias: 1\r\n/);
+      await esperarTexto('Outro pacote/Índice do pacote.txt', /Matérias: 1\r\n[\s\S]*01 - Juíza/);
+      const arquivos = [`Outro pacote/01 - ${titulo2}.zip`, 'Outro pacote/Índice do pacote.txt', 'STF outubro/01 - Página curta.zip', INDICE_STF];
+      assert.deepEqual(listar(downloads).sort(), arquivos);
+      // Salvar de novo no mesmo pacote troca o arquivo, sem criar uma cópia "(1)".
+      await resultado2.click('#baixar');
+      await resultado2.waitForFunction(() => {
+        const t = document.getElementById('estado').textContent;
+        return /ZIP nº 1 do pacote “Outro pacote”/.test(t) && !/cópia/.test(t);
+      });
+      assert.deepEqual(listar(downloads).sort(), arquivos);
       await resultado2.close();
 
-      // Gerenciador: lista os pacotes, tira ZIP e exclui pacote (os arquivos ficam).
+      // Gerenciador: situação de cada ZIP, exportar o pacote, tirar ZIP e excluir pacote.
       const gerenciador = await contexto.newPage();
       gerenciador.on('pageerror', (e) => erros.push(e.message));
       await gerenciador.goto(`chrome-extension://${idExtensao}/pacotes.html`);
       await gerenciador.waitForFunction(() => document.querySelectorAll('.pacote').length === 2 && document.querySelector('.status'));
+      assert.equal(await gerenciador.$eval('input[name="destino"]:checked', (r) => r.value), 'downloads', 'pasta Downloads por padrão');
       const cartoes = () =>
         gerenciador.$$eval('.pacote', (cs) =>
           cs.map((c) => ({
             nome: c.querySelector('h2').textContent,
+            pasta: c.querySelector('.caminho').textContent.split(' · ')[0],
             proxima: Boolean(c.querySelector('.marca')),
             itens: [...c.querySelectorAll('.item')].map((i) => `${i.querySelector('strong').textContent} (${i.querySelector('.status').textContent})`),
           })),
         );
       assert.deepEqual(await cartoes(), [
-        { nome: 'Outro pacote', proxima: false, itens: [`${nome2} (na pasta)`] },
-        { nome: 'STF outubro', proxima: true, itens: ['Página curta.zip (na pasta)'] },
+        { nome: 'Outro pacote', pasta: 'Downloads/Outro pacote/', proxima: false, itens: [`01 - ${titulo2}.zip (na pasta do pacote)`] },
+        { nome: 'STF outubro', pasta: 'Downloads/STF outubro/', proxima: true, itens: ['01 - Página curta.zip (na pasta do pacote)'] },
       ]);
       if (process.env.SALVAR_PRINTS) await gerenciador.screenshot({ path: path.join(process.env.SALVAR_PRINTS, 'pacotes.png'), fullPage: true });
-      await gerenciador.locator('.pacote', { hasText: 'STF outubro' }).getByRole('button', { name: 'Tirar do pacote' }).click();
+      const stf = gerenciador.locator('.pacote', { hasText: 'STF outubro' });
+      await stf.getByRole('button', { name: 'Exportar pacote (.zip)' }).click();
+      const exportado = lerZip(await esperarArquivo('STF outubro.zip'));
+      assert.deepEqual(
+        exportado.map((i) => i.nome),
+        ['STF outubro/', INDICE_STF, 'STF outubro/01 - Página curta/', 'STF outubro/01 - Página curta/001.png', 'STF outubro/01 - Página curta/info.txt'],
+      );
+      assert.match(exportado[1].texto, /Matérias: 1\r\n\r\n01 - Página curta\/\r\n/);
+      await gerenciador.waitForFunction(() => /ZIP do pacote salvo em/.test(document.getElementById('aviso').textContent));
+
+      await stf.getByRole('button', { name: 'Tirar do pacote' }).click();
       await gerenciador.waitForFunction(() => [...document.querySelectorAll('.pacote')].some((c) => c.textContent.includes('Nenhum ZIP ainda')));
+      await esperarTexto(INDICE_STF, /Matérias: 0\r\n/);
       const outro = gerenciador.locator('.pacote', { hasText: 'Outro pacote' });
       await outro.getByRole('button', { name: 'Excluir' }).first().click();
       await outro.locator('.confirmar').getByRole('button', { name: 'Excluir' }).click();
       await gerenciador.waitForFunction(() => document.querySelectorAll('.pacote').length === 1);
-      assert.deepEqual(listar(downloads).sort(), [`Outro pacote/${nome2}`, 'STF outubro/Página curta.zip'], 'arquivos continuam');
+      assert.deepEqual(listar(downloads).sort(), [...arquivos, 'STF outubro.zip'].sort(), 'os arquivos continuam');
 
       // Nomes difíceis (invisíveis, ponto no começo, ".lnk") ainda viram downloads aceitos.
       const recusados = await gerenciador.evaluate(async () => {
-        const { caminhoDoZip } = await import('./pacotes.js');
+        const { nomeNoPacote, nomeSolto, pastaDoPacote } = await import('./pacotes.js');
         const url = URL.createObjectURL(new Blob(['PK'], { type: 'application/zip' }));
         const falhas = [];
         for (const [pasta, nome] of [['.oculto', 'x​y'], ['pasta.lnk', 'CON'], ['a~b', '.zip'], ['  ', '  '], ['Título: “1/2”?', 'teste.local']]) {
-          try {
-            await chrome.downloads.download({ url, filename: caminhoDoZip(pasta, nome), saveAs: false });
-          } catch (e) {
-            falhas.push(`${caminhoDoZip(pasta, nome)}: ${e.message}`);
+          for (const caminho of [`${pastaDoPacote(pasta)}/${nomeNoPacote(1, nome)}`, nomeSolto(nome)]) {
+            try {
+              await chrome.downloads.download({ url, filename: caminho, saveAs: false });
+            } catch (e) {
+              falhas.push(`${caminho}: ${e.message}`);
+            }
           }
         }
         return falhas;
       });
       assert.deepEqual(recusados, []);
       assert.deepEqual(erros, []);
-      console.log('ok   pacotes: escolha no popup, ZIPs na pasta do pacote, mover no resultado e gerenciador');
+      console.log('ok   pacotes: pasta do pacote em Downloads, ZIPs numerados, índice, mover, exportar e gerenciador');
       await gerenciador.close();
       await alvo1.pagina.close();
       await alvo2.pagina.close();
@@ -396,8 +579,129 @@ async function main() {
       console.log(`FALHA pacotes\n${e.stack}`);
     }
 
+    // Pasta escolhida para os pacotes: a extensão grava direto nela, sem a
+    // janela "Salvar como". No teste, uma pasta do armazenamento do navegador
+    // faz o papel da pasta escolhida na janela do sistema.
+    if (rodar('pasta escolhida')) try {
+      limparDownloads();
+      const gerenciador = await contexto.newPage();
+      gerenciador.on('pageerror', (e) => erros.push(e.message));
+      await gerenciador.goto(`chrome-extension://${idExtensao}/pacotes.html`);
+      const listarPasta = () =>
+        gerenciador.evaluate(async () => {
+          const saida = [];
+          const andar = async (dir, prefixo) => {
+            for await (const [nome, h] of dir.entries()) {
+              if (h.kind === 'directory') await andar(h, `${prefixo}${nome}/`);
+              else saida.push(`${prefixo}${nome}`);
+            }
+          };
+          await andar(await (await navigator.storage.getDirectory()).getDirectoryHandle('Pacotes de prints'), '');
+          return saida.sort();
+        });
+      const copiarDaPasta = async (caminho, destino) => {
+        const base64 = await gerenciador.evaluate(async (caminho) => {
+          let dir = await (await navigator.storage.getDirectory()).getDirectoryHandle('Pacotes de prints');
+          const partes = caminho.split('/');
+          for (const p of partes.slice(0, -1)) dir = await dir.getDirectoryHandle(p);
+          const bytes = new Uint8Array(await (await (await dir.getFileHandle(partes.at(-1))).getFile()).arrayBuffer());
+          let s = '';
+          for (const b of bytes) s += String.fromCharCode(b);
+          return btoa(s);
+        }, caminho);
+        fs.writeFileSync(destino, Buffer.from(base64, 'base64'));
+        return destino;
+      };
+      await gerenciador.evaluate(async () => {
+        const { salvarDestino } = await import('./destino.js');
+        const raiz = await navigator.storage.getDirectory();
+        await salvarDestino({ modo: 'pasta', pasta: await raiz.getDirectoryHandle('Pacotes de prints', { create: true }) });
+      });
+      const situacao = 'Os pacotes vão para a pasta “Pacotes de prints”.';
+      await gerenciador.reload();
+      await gerenciador.waitForFunction((t) => document.getElementById('destino-situacao').textContent === t, situacao);
+      assert.equal(await gerenciador.$eval('input[name="destino"]:checked', (r) => r.value), 'pasta');
+      assert.equal(await gerenciador.textContent('#pasta-nome'), 'Pasta: Pacotes de prints');
+      // Trocar a opção na tela não muda nada até clicar em Salvar.
+      await gerenciador.check('input[name="destino"][value="downloads"]');
+      await gerenciador.waitForFunction(() => !document.getElementById('destino-pendente').hidden);
+      assert.equal(await gerenciador.isEnabled('#salvar-destino'), true);
+      await gerenciador.reload();
+      await gerenciador.waitForFunction((t) => document.getElementById('destino-situacao').textContent === t, situacao);
+      assert.equal(await gerenciador.$eval('input[name="destino"]:checked', (r) => r.value), 'pasta', 'sem Salvar, continua a pasta escolhida');
+
+      // Pacote criado aqui já ganha a pasta principal, com o índice.
+      await gerenciador.click('#novo');
+      await gerenciador.fill('#novo-nome', 'TST novembro');
+      assert.equal(await gerenciador.textContent('#novo-destino'), 'Pasta: Pacotes de prints/TST novembro/');
+      await gerenciador.click('#form-novo button[type=submit]');
+      await gerenciador.waitForFunction(() => /A pasta “Pacotes de prints\/TST novembro” foi criada/.test(document.getElementById('aviso').textContent));
+      assert.deepEqual(await listarPasta(), ['TST novembro/Índice do pacote.txt']);
+
+      const alvo = await abrirAlvo('curta.html');
+      const popup = await popupPara(alvo.tabId);
+      assert.equal(await popup.textContent('#pacote-destino'), 'Vai para: Pacotes de prints/TST novembro/01 - Página curta.zip');
+      const resultado = await iniciarPeloPopup(popup);
+      await resultado.waitForFunction(() => document.getElementById('destino-texto').textContent.startsWith('Salvo'));
+      assert.equal(await resultado.textContent('#destino-texto'), 'Salvo no pacote “TST novembro”: Pacotes de prints/TST novembro/01 - Página curta.zip');
+      assert.deepEqual(await listarPasta(), ['TST novembro/01 - Página curta.zip', 'TST novembro/Índice do pacote.txt']);
+      assert.deepEqual(listar(downloads), [], 'nada foi para Downloads');
+      const itens = lerZip(await copiarDaPasta('TST novembro/01 - Página curta.zip', path.join(tmp, 'pasta-escolhida.zip')));
+      assert.deepEqual(itens.map((i) => i.nome), ['Página curta/', 'Página curta/001.png', 'Página curta/info.txt']);
+      assert.match(itens[2].texto, /Pacote: TST novembro/);
+      const indice = fs.readFileSync(await copiarDaPasta('TST novembro/Índice do pacote.txt', path.join(tmp, 'indice.txt')), 'utf8');
+      assert.match(indice, /^﻿Pacote: TST novembro\r\n[\s\S]*Matérias: 1\r\n\r\n01 - Página curta\.zip\r\n/);
+
+      const tst = gerenciador.locator('.pacote', { hasText: 'TST novembro' });
+      await gerenciador.waitForFunction(() => [...document.querySelectorAll('.pacote .status')].some((s) => s.textContent === 'na pasta do pacote'));
+      assert.equal(await tst.locator('.caminho').textContent().then((t) => t.split(' · ')[0]), 'Pacotes de prints/TST novembro/');
+      assert.equal(await tst.getByRole('button', { name: 'Mostrar na pasta' }).count(), 0);
+      // Exportar: o ZIP do pacote fica ao lado da pasta dele. Sem os prints
+      // guardados na extensão, ele usa o ZIP que está na pasta.
+      const esperado = ['TST novembro/', 'TST novembro/Índice do pacote.txt', 'TST novembro/01 - Página curta/', 'TST novembro/01 - Página curta/001.png', 'TST novembro/01 - Página curta/info.txt'];
+      for (const vez of ['com os prints guardados', 'só com o ZIP da pasta']) {
+        if (vez === 'só com o ZIP da pasta') {
+          await resultado.evaluate(async () => (await import('./db.js')).apagarSessao(new URLSearchParams(location.search).get('sessao')));
+        }
+        await gerenciador.evaluate(() => (document.getElementById('aviso').textContent = ''));
+        await tst.getByRole('button', { name: 'Exportar pacote (.zip)' }).click();
+        await gerenciador.waitForFunction(() => /ZIP do pacote salvo em Pacotes de prints\/TST novembro\.zip/.test(document.getElementById('aviso').textContent));
+        const exportado = lerZip(await copiarDaPasta('TST novembro.zip', path.join(tmp, 'tst.zip')));
+        assert.deepEqual(exportado.map((i) => i.nome), esperado, vez);
+        assert.equal(exportado[3].tamanho.length, 2, vez);
+      }
+
+      // O ZIP tirado do pacote continua na pasta: o próximo ganha outro número, sem cair em cima dele.
+      await resultado.close(); // a aba da página volta a ser a ativa da janela dela
+      await popup.close();
+      await tst.getByRole('button', { name: 'Tirar do pacote' }).click();
+      await gerenciador.waitForFunction(() => document.querySelector('.pacote')?.textContent.includes('Nenhum ZIP ainda'));
+      const popup2 = await popupPara(alvo.tabId);
+      await popup2.waitForFunction(() => document.getElementById('pacote-destino').textContent.includes('/02 - '));
+      assert.equal(await popup2.textContent('#pacote-destino'), 'Vai para: Pacotes de prints/TST novembro/02 - Página curta.zip');
+      const resultado2 = await iniciarPeloPopup(popup2);
+      await resultado2.waitForFunction(() => document.getElementById('destino-texto').textContent.startsWith('Salvo'));
+      assert.equal(await resultado2.textContent('#destino-texto'), 'Salvo no pacote “TST novembro”: Pacotes de prints/TST novembro/02 - Página curta.zip');
+      assert.deepEqual(await listarPasta(), ['TST novembro.zip', 'TST novembro/01 - Página curta.zip', 'TST novembro/02 - Página curta.zip', 'TST novembro/Índice do pacote.txt']);
+      const indice2 = fs.readFileSync(await copiarDaPasta('TST novembro/Índice do pacote.txt', path.join(tmp, 'indice2.txt')), 'utf8');
+      assert.match(indice2, /Matérias: 1\r\n\r\n02 - Página curta\.zip\r\n/);
+      await resultado2.close();
+      await popup2.close();
+      assert.deepEqual(listar(downloads), []);
+      assert.deepEqual(erros, []);
+      console.log('ok   pasta escolhida: pasta do pacote criada na hora, ZIP e índice gravados direto, exportação');
+      await gerenciador.evaluate(async () => (await import('./destino.js')).salvarDestino({ modo: 'downloads' }));
+      await gerenciador.close();
+      await alvo.pagina.close();
+    } catch (e) {
+      falhas.push('pasta escolhida');
+      console.log(`FALHA pasta escolhida\n${e.stack}`);
+    }
+
+    await controle.close();
+
     // Versão sem instalar: script colado na página + compartilhamento de aba.
-    try {
+    if (rodar('sem instalar')) try {
       const pagina = await contexto.newPage();
       await pagina.goto(`${base}/artigo.html`);
       await pagina.addScriptTag({ path: path.join(RAIZ, 'script', 'captura-sem-instalar.js') });
@@ -432,7 +736,7 @@ async function main() {
     }
 
     // Ferramenta de notícias: .txt soltos + .zip do Windows com pasta da área.
-    try {
+    if (rodar('notícias')) try {
       const pasta = path.join(__dirname, 'noticias');
       const zipNoticias = path.join(tmp, 'noticias.zip');
       execFileSync('python3', [
@@ -518,7 +822,7 @@ with zipfile.ZipFile(sys.argv[1], 'w') as z:
     }
 
     // Notícias por colagem: copiar a matéria no site (Ctrl+C) e colar (Ctrl+V).
-    try {
+    if (rodar('notícias por colagem')) try {
       const erros = [];
       const site = await contexto.newPage();
       await site.goto(`${base}/materia.html`);
@@ -608,7 +912,7 @@ with zipfile.ZipFile(sys.argv[1], 'w') as z:
     }
 
     // Versão de notícias num arquivo só, aberta direto do disco (sem a extensão).
-    try {
+    if (rodar('notícias sem instalar')) try {
       const erros = [];
       const pagina = await contexto.newPage();
       pagina.on('pageerror', (e) => erros.push(e.message));

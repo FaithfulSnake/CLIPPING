@@ -99,6 +99,20 @@ async function capturarTela(windowId, formato) {
   }
 }
 
+// Recorta o print na região escolhida (coordenadas da tela em pixels CSS).
+async function recortar(blob, corte, janela, formato) {
+  const imagem = await createImageBitmap(blob);
+  const escala = imagem.width / janela.largura;
+  const x = Math.round(corte.x * escala);
+  const y = Math.round(corte.y * escala);
+  const w = Math.min(imagem.width - x, Math.round(corte.w * escala));
+  const h = Math.min(imagem.height - y, Math.round(corte.h * escala));
+  const tela = new OffscreenCanvas(w, h);
+  tela.getContext('2d').drawImage(imagem, x, y, w, h, 0, 0, w, h);
+  imagem.close();
+  return tela.convertToBlob(formato === 'jpeg' ? { type: 'image/jpeg', quality: 0.92 } : { type: 'image/png' });
+}
+
 async function dimensoes(blob) {
   const imagem = await createImageBitmap(blob);
   const d = { largura: imagem.width, altura: imagem.height };
@@ -106,7 +120,8 @@ async function dimensoes(blob) {
   return d;
 }
 
-async function iniciar(tabId, pasta, opcoesRecebidas, pacoteId = null) {
+// selecao: o que foi escolhido na página pelo seletor ({ rolagemEscolhida, recorte }).
+async function iniciar(tabId, pasta, opcoesRecebidas, pacoteId = null, selecao = null) {
   if (tarefa?.ativo) return { erro: 'Já existe uma captura em andamento.' };
   const opcoes = normalizarOpcoes(opcoesRecebidas);
   const aba = await chrome.tabs.get(tabId);
@@ -116,6 +131,18 @@ async function iniciar(tabId, pasta, opcoesRecebidas, pacoteId = null) {
   } catch (e) {
     return { erro: descreverErro(e) };
   }
+  // Escolher na página antes: o seletor mostra as opções na própria aba e,
+  // quando o usuário confirma, manda outro "iniciar" já com a escolha feita.
+  if (!selecao && (opcoes.areaRolagem === 'escolher' || opcoes.recorte === 'regiao')) {
+    await chrome.scripting.executeScript({ target: { tabId }, files: ['seletor.js'] });
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      func: (pedido) => globalThis.__clippingSeletor.abrir(pedido),
+      args: [{ pasta, opcoes, pacoteId }],
+    });
+    return { ok: true, escolhendo: true };
+  }
+  const recorte = opcoes.recorte === 'regiao' ? (selecao?.recorte ? 'regiao' : 'tela') : opcoes.recorte;
   tarefa = {
     ativo: true,
     estado: 'capturando',
@@ -128,6 +155,7 @@ async function iniciar(tabId, pasta, opcoesRecebidas, pacoteId = null) {
     parar: false,
     opcoes,
     pacote: referencia(pacote),
+    configPagina: { usarEscolhida: Boolean(selecao?.rolagemEscolhida), recorte: { modo: recorte, retangulo: selecao?.recorte || null } },
   };
   executar(tarefa, aba, limparNome(pasta || aba.title));
   return { ok: true };
@@ -166,10 +194,13 @@ async function executar(t, aba, pasta) {
   const resultado = await capturarComRolagem({
     opcoes: t.opcoes,
     pagina: (metodo, arg) => chamarPagina(t.tabId, metodo, arg),
+    configPagina: t.configPagina,
     antesDoPrint: () => aguardarAbaVisivel(t),
-    tirarPrint: async () => {
+    tirarPrint: async (medidas, inicio) => {
       const dataUrl = await capturarTela(t.windowId, t.opcoes.formato);
-      return (await fetch(dataUrl)).blob();
+      const blob = await (await fetch(dataUrl)).blob();
+      sessao.recorte ??= inicio?.recorte || null;
+      return inicio?.recorte ? recortar(blob, inicio.recorte, medidas.janela || inicio.janela, t.opcoes.formato) : blob;
     },
     aoCapturar: async (blob, n, porcento, medidas) => {
       if (n === 1) Object.assign(sessao, await dimensoes(blob));
@@ -221,10 +252,13 @@ async function executar(t, aba, pasta) {
   }, 10000);
 }
 
-chrome.runtime.onMessage.addListener((msg, _remetente, responder) => {
+chrome.runtime.onMessage.addListener((msg, remetente, responder) => {
   switch (msg?.tipo) {
     case 'iniciar':
-      iniciar(msg.tabId, msg.pasta, msg.opcoes, msg.pacoteId).then(responder, (e) => responder({ erro: descreverErro(e) }));
+      // vem do popup (com tabId) ou do seletor na própria página (aba de quem enviou)
+      iniciar(msg.tabId ?? remetente.tab?.id, msg.pasta, msg.opcoes, msg.pacoteId, msg.selecao).then(responder, (e) =>
+        responder({ erro: descreverErro(e) }),
+      );
       return true;
     case 'status':
       responder(status());

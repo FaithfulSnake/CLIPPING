@@ -33,6 +33,9 @@ test('textoInfo inclui endereço, quantidade e aviso de captura incompleta', () 
   assert.match(t, /Endereço: https:\/\/x\.y\r\n/);
   assert.match(t, /Quantidade de prints: 3/);
   assert.match(t, /ATENÇÃO: O limite de 3 prints/);
+  assert.doesNotMatch(t, /Pacote:/);
+  const comPacote = textoInfo({ titulo: 'Pág', url: 'https://x.y', data: 0, total: 3, sobreposicao: 10, pacote: { nome: 'STF outubro' } });
+  assert.match(comPacote, /Capturado em: .*\r\nPacote: STF outubro\r\nQuantidade de prints: 3/);
 });
 
 // Simula uma página de 3000px com área visível de 800px e cabeçalho fixo de 100px.

@@ -1,6 +1,7 @@
-// Pacotes de prints: grupos com nome, escolhidos antes da captura. Os ZIPs de
-// um pacote são salvos em Downloads/<pasta do pacote>/. A lista fica no
-// armazenamento da extensão (chrome.storage.local, chave "pacotes").
+// Pacotes de prints: grupos com nome, escolhidos antes da captura. Cada pacote
+// é uma pasta principal (dentro da pasta escolhida para os pacotes, ou de
+// Downloads) com os ZIPs numerados na ordem e o "Índice do pacote.txt".
+// A lista fica no armazenamento da extensão (chrome.storage.local, "pacotes").
 import { limparNome } from './comum.js';
 
 const CHAVE = 'pacotes';
@@ -22,11 +23,8 @@ export function nomeParaDownload(nome, { limite = 100, padrao = 'prints' } = {})
 
 export const pastaDoPacote = (nome) => nomeParaDownload(nome, { limite: LIMITE_PASTA, padrao: 'Pacote' });
 
-// Caminho relativo à pasta Downloads: "Pacote/Nome.zip", ou só "Nome.zip".
-export function caminhoDoZip(pasta, nome) {
-  const arquivo = `${nomeParaDownload(nome)}.zip`;
-  return pasta ? `${pastaDoPacote(pasta)}/${arquivo}` : arquivo;
-}
+// ZIP solto (sem pacote): "Nome.zip" direto em Downloads.
+export const nomeSolto = (nome) => `${nomeParaDownload(nome)}.zip`;
 
 const SITES = [
   [/(^|\.)conjur\.com\.br$/, 'ConJur'],
@@ -47,20 +45,65 @@ export function nomeDoSite(url) {
   }
 }
 
+const dois = (n) => String(n).padStart(2, '0');
+
 // Sugestão para um pacote novo: site e data, como "ConJur 07-10-2026".
 export function sugerirNomePacote(url, quando = new Date()) {
-  const dois = (n) => String(n).padStart(2, '0');
   const data = `${dois(quando.getDate())}-${dois(quando.getMonth() + 1)}-${quando.getFullYear()}`;
   const site = /^https?:/i.test(url || '') ? nomeDoSite(url) : '';
   return pastaDoPacote(site ? `${site} ${data}` : `Pacote ${data}`);
 }
 
 // No Windows "STF Outubro" e "stf outubro" são a mesma pasta: viram o mesmo pacote.
-const chaveDoNome = (nome) =>
+export const chaveDoNome = (nome) =>
   pastaDoPacote(nome)
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '')
     .toLowerCase();
+
+export const NOME_INDICE = 'Índice do pacote.txt';
+
+// Número da matéria no pacote: o que ela já tem, ou o próximo da sequência.
+export function proximoNumero(pacote, sessaoId) {
+  const itens = pacote?.itens || [];
+  const ja = itens.find((i) => i.sessaoId === sessaoId)?.numero;
+  if (ja) return ja;
+  return Math.max(0, ...itens.map((i) => i.numero || 0)) + 1;
+}
+
+// Nome do ZIP dentro do pacote: "01 - Título da matéria.zip".
+export const nomeNoPacote = (numero, nome) => `${dois(numero)} - ${nomeParaDownload(nome, { limite: 90 })}.zip`;
+
+const dataHora = (ms) => new Date(ms).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+
+// Conteúdo do "Índice do pacote.txt" (identifica a pasta e lista as matérias).
+// No ZIP do pacote exportado cada matéria é uma pasta (comoPasta); faltando
+// são as matérias que ficaram de fora dele.
+export function textoDoIndice(pacote, { comoPasta = false, faltando = [] } = {}) {
+  const itens = [...(pacote.itens || [])].sort(porNumero);
+  const linhas = [
+    `Pacote: ${pacote.nome}`,
+    `Criado em: ${dataHora(pacote.criado)}`,
+    `Atualizado em: ${dataHora(pacote.atualizado)}`,
+    `Matérias: ${itens.length}`,
+    '',
+  ];
+  for (const i of itens) {
+    linhas.push(
+      comoPasta ? `${i.arquivo.replace(/\.zip$/i, '')}/` : i.arquivo,
+      `    Página: ${i.titulo || '(sem título)'}`,
+      `    Endereço: ${i.url || ''}`,
+      `    Capturada em: ${dataHora(i.data)} · ${i.total} ${i.total === 1 ? 'print' : 'prints'}`,
+    );
+    if (faltando.some((f) => f.sessaoId === i.sessaoId)) linhas.push('    (fora deste ZIP: os prints não estão mais guardados na extensão)');
+    linhas.push('');
+  }
+  linhas.push('Gerado pela extensão Ferramentas Fanjas (Prints com rolagem).');
+  return `\uFEFF${linhas.join('\r\n')}\r\n`;
+}
+
+// Ordem das matérias no pacote (capturas antigas, sem número, pela data).
+export const porNumero = (a, b) => (a.numero || Infinity) - (b.numero || Infinity) || a.data - b.data;
 
 // Referência curta guardada junto da captura.
 export const referencia = (pacote) => (pacote ? { id: pacote.id, nome: pacote.nome, pasta: pacote.pasta } : null);
@@ -138,17 +181,20 @@ export const registrarZip = (ref, item) =>
     return pacote;
   });
 
-// Tira o ZIP da lista do pacote (o arquivo continua na pasta).
+// Tira o ZIP da lista do pacote (o arquivo continua na pasta). Devolve o
+// pacote como ficou, para atualizar o índice.
 export const tirarDoPacote = (pacoteId, sessaoId) =>
   emFila(async () => {
     const dados = await ler();
     const pacote = dados.lista.find((p) => p.id === pacoteId);
-    if (!pacote) return;
+    if (!pacote?.itens.some((i) => i.sessaoId === sessaoId)) return null;
     pacote.itens = pacote.itens.filter((i) => i.sessaoId !== sessaoId);
+    pacote.atualizado = Date.now();
     await gravar(dados);
+    return pacote;
   });
 
-// Tira o pacote da lista (a pasta e os ZIPs continuam em Downloads).
+// Tira o pacote da lista (a pasta e os ZIPs continuam no disco).
 export const excluirPacote = (id) =>
   emFila(async () => {
     const dados = await ler();

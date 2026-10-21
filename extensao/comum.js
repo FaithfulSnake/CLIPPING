@@ -9,6 +9,8 @@ export const OPCOES_PADRAO = Object.freeze({
   esconderFixos: true,
   incluirInfo: true,
   baixarAuto: true,
+  areaRolagem: 'auto', // 'auto' (a extensão encontra) | 'escolher' (clicar na página antes)
+  recorte: 'tela', // 'tela' inteira | 'area' que rola | 'regiao' marcada na página
 });
 
 export function normalizarOpcoes(o = {}) {
@@ -27,8 +29,12 @@ export function normalizarOpcoes(o = {}) {
     esconderFixos: booleano(o.esconderFixos, p.esconderFixos),
     incluirInfo: booleano(o.incluirInfo, p.incluirInfo),
     baixarAuto: booleano(o.baixarAuto, p.baixarAuto),
+    areaRolagem: o.areaRolagem === 'escolher' ? 'escolher' : 'auto',
+    recorte: o.recorte === 'area' || o.recorte === 'regiao' ? o.recorte : 'tela',
   };
 }
+
+export const opcoesIguais = (a, b) => JSON.stringify(normalizarOpcoes(a)) === JSON.stringify(normalizarOpcoes(b));
 
 const NOMES_RESERVADOS = /^(con|prn|aux|nul|com\d|lpt\d)$/i;
 
@@ -70,7 +76,9 @@ export function textoInfo(sessao) {
     `Capturado em: ${new Date(sessao.data).toLocaleString('pt-BR')}`,
     `Quantidade de prints: ${sessao.total}`,
   ];
+  if (sessao.pacote?.nome) linhas.splice(3, 0, `Pacote: ${sessao.pacote.nome}`);
   if (sessao.largura) linhas.push(`Tamanho de cada print: ${sessao.largura} x ${sessao.altura} pixels`);
+  if (sessao.recorte) linhas.push('Área do print: só uma parte da tela (recorte escolhido antes da captura)');
   linhas.push(
     '',
     `Cada print repete o final do anterior (cerca de ${sessao.sobreposicao}% da tela, mais a altura`,
@@ -85,19 +93,20 @@ const esperar = (ms) => new Promise((pronto) => setTimeout(pronto, ms));
 
 // O laço de captura: rola do topo ao fim e tira um print por trecho.
 //   pagina(metodo, arg)  chama a API de pagina.js (direto ou via extensão)
-//   tirarPrint()         devolve um Blob com o print da tela (ou null = parar)
+//   configPagina         o que pagina.js usa ao iniciar (área escolhida, recorte)
+//   tirarPrint(m, inicio) devolve um Blob com o print da tela (ou null = parar)
 //   antesDoPrint()       espera a aba estar visível, etc.
 //   aoCapturar(blob, n, porcento, medidas)
 //   deveParar()          true quando o usuário pede para parar
 // Devolve { total, motivo: 'fim'|'parado'|'limite'|'erro', erro }.
-export async function capturarComRolagem({ opcoes, pagina, tirarPrint, antesDoPrint, aoCapturar, deveParar }) {
+export async function capturarComRolagem({ opcoes, pagina, configPagina, tirarPrint, antesDoPrint, aoCapturar, deveParar }) {
   let total = 0;
   let motivo = 'fim';
   let erro = null;
   let alvo = 0;
   let anterior = -1;
   try {
-    await pagina('iniciar');
+    const inicio = await pagina('iniciar', configPagina ?? null);
     for (;;) {
       if (deveParar()) {
         motivo = 'parado';
@@ -116,7 +125,7 @@ export async function capturarComRolagem({ opcoes, pagina, tirarPrint, antesDoPr
       }
       const m = await pagina('prepararPrint', opcoes.esconderFixos && total > 0);
       if (total > 0 && m.topo <= anterior) break; // a página não rola mais
-      const blob = await tirarPrint();
+      const blob = await tirarPrint(m, inicio);
       if (!blob) {
         motivo = 'parado';
         break;

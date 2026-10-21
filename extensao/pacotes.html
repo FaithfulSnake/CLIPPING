@@ -17,9 +17,46 @@
     </header>
 
     <main>
+      <section id="destino" class="destino" aria-labelledby="destino-titulo">
+        <div class="destino-cabeca">
+          <h2 id="destino-titulo">Onde salvar os pacotes</h2>
+          <span id="destino-pendente" class="selo-pendente" hidden>não salvo</span>
+        </div>
+        <label class="opcao">
+          <input type="radio" name="destino" value="downloads" />
+          <span>
+            <strong>Pasta Downloads do navegador</strong>
+            <small>O Chrome cria a pasta de cada pacote dentro de Downloads. Se ele estiver configurado para perguntar onde salvar cada arquivo, a janela “Salvar como” aparece a cada ZIP e você escolhe a pasta.</small>
+          </span>
+        </label>
+        <label class="opcao">
+          <input type="radio" name="destino" value="pasta" />
+          <span>
+            <strong>Uma pasta escolhida por você <em class="recomendado">recomendado</em></strong>
+            <small>A extensão grava direto nela, sem perguntar: cada pacote vira uma pasta lá dentro, com os ZIPs numerados e o “Índice do pacote.txt”. O Chrome não deixa escolher a pasta Downloads ou Documentos inteira: crie uma pasta só para isso, como “Pacotes de prints”.</small>
+          </span>
+        </label>
+        <div id="pasta-linha" class="pasta-linha" hidden>
+          <button id="escolher-pasta" type="button">Escolher pasta…</button>
+          <span id="pasta-nome" class="pasta-nome"></span>
+          <button id="permitir" type="button" hidden>Permitir acesso</button>
+        </div>
+        <p id="pergunta-aviso" class="alerta" hidden>
+          O Chrome está configurado para perguntar onde salvar cada arquivo, então na pasta Downloads a pasta do pacote não é
+          criada sozinha. Escolha uma pasta para os pacotes (opção acima) ou desligue “Perguntar onde salvar cada arquivo” nas
+          configurações de download do Chrome.
+        </p>
+        <div class="salvar-linha">
+          <button id="salvar-destino" type="button" class="primario" disabled>Salvar</button>
+          <span id="destino-situacao" class="suave" role="status"></span>
+        </div>
+      </section>
+
       <p class="explica">
-        Cada pacote é uma pasta dentro de <strong>Downloads</strong>. Antes de iniciar uma captura, escolha o pacote no
-        popup da extensão: o ZIP vai direto para a pasta dele.
+        Cada pacote é uma pasta com o nome dele, com os ZIPs numerados na ordem das matérias (01 - …, 02 - …) e um arquivo
+        <strong>Índice do pacote.txt</strong> que lista o que tem dentro. Antes de iniciar uma captura, escolha o pacote no
+        popup da extensão: o ZIP vai direto para a pasta dele. <strong>Exportar pacote</strong> junta tudo num ZIP só, com a
+        pasta do pacote e uma pasta para cada matéria.
       </p>
 
       <form id="form-novo" class="form-novo" hidden>
@@ -36,6 +73,7 @@
         Nenhum pacote ainda. Crie um aqui ou escolha “Novo pacote…” no popup antes de iniciar uma captura.
       </p>
       <div id="lista" class="lista"></div>
+      <p id="espaco" class="suave espaco"></p>
     </main>
 
     <div id="aviso" class="aviso-flutuante" role="status" aria-live="polite" hidden></div>

@@ -13,17 +13,22 @@ globalThis.chrome = {
 };
 
 const {
-  caminhoDoZip,
+  NOME_INDICE,
   criarPacote,
   excluirPacote,
   guardarEscolha,
   lerPacotes,
   nomeDoSite,
+  nomeNoPacote,
   nomeParaDownload,
+  nomeSolto,
   pastaDoPacote,
+  porNumero,
+  proximoNumero,
   referencia,
   registrarZip,
   sugerirNomePacote,
+  textoDoIndice,
   tirarDoPacote,
 } = await import('../extensao/pacotes.js');
 
@@ -55,10 +60,45 @@ test('limpar duas vezes dá o mesmo nome', () => {
   }
 });
 
-test('caminho do ZIP com e sem pacote', () => {
-  assert.equal(caminhoDoZip('STF outubro', 'Matéria 1'), 'STF outubro/Matéria 1.zip');
-  assert.equal(caminhoDoZip(null, 'Matéria 1'), 'Matéria 1.zip');
-  assert.equal(caminhoDoZip('', 'a/b'), 'a b.zip');
+test('nome do ZIP solto e numerado dentro do pacote', () => {
+  assert.equal(nomeSolto('Matéria 1'), 'Matéria 1.zip');
+  assert.equal(nomeSolto('a/b'), 'a b.zip');
+  assert.equal(nomeNoPacote(1, 'Matéria: 1'), '01 - Matéria 1.zip');
+  assert.equal(nomeNoPacote(12, '.oculto'), '12 - oculto.zip');
+  assert.equal(nomeNoPacote(105, 'x'), '105 - x.zip');
+  assert.ok(nomeNoPacote(3, 'a'.repeat(300)).length <= 100, 'cabe no limite de nome');
+});
+
+test('numeração das matérias no pacote', () => {
+  assert.equal(proximoNumero(null, 's1'), 1);
+  assert.equal(proximoNumero({ itens: [] }, 's1'), 1);
+  const pacote = { itens: [{ sessaoId: 'a', numero: 1 }, { sessaoId: 'b', numero: 3 }, { sessaoId: 'c' }] };
+  assert.equal(proximoNumero(pacote, 'b'), 3, 'a mesma matéria mantém o número');
+  assert.equal(proximoNumero(pacote, 'novo'), 4, 'a próxima vem depois da maior');
+  assert.equal(proximoNumero(pacote, 'c'), 4, 'captura antiga, sem número, ganha um');
+  const ordem = [{ numero: 2, data: 1 }, { data: 5 }, { numero: 1, data: 9 }, { data: 3 }].sort(porNumero);
+  assert.deepEqual(ordem.map((i) => i.numero ?? `d${i.data}`), [1, 2, 'd3', 'd5']);
+});
+
+test('índice do pacote identifica a pasta e lista as matérias em ordem', () => {
+  const pacote = {
+    nome: 'STF outubro',
+    criado: Date.UTC(2026, 9, 7, 12),
+    atualizado: Date.UTC(2026, 9, 8, 12),
+    itens: [
+      { sessaoId: 'b', numero: 2, arquivo: '02 - Segunda.zip', titulo: 'Segunda', url: 'https://x/2', total: 1, data: Date.UTC(2026, 9, 8, 12) },
+      { sessaoId: 'a', numero: 1, arquivo: '01 - Primeira.zip', titulo: 'Primeira', url: 'https://x/1', total: 4, data: Date.UTC(2026, 9, 7, 12) },
+    ],
+  };
+  const texto = textoDoIndice(pacote);
+  assert.equal(NOME_INDICE, 'Índice do pacote.txt');
+  assert.ok(texto.startsWith('\uFEFFPacote: STF outubro\r\n'), 'BOM para o Bloco de Notas');
+  assert.match(texto, /Matérias: 2\r\n/);
+  assert.match(texto, /01 - Primeira\.zip\r\n {4}Página: Primeira\r\n {4}Endereço: https:\/\/x\/1\r\n {4}Capturada em: .* · 4 prints[\s\S]*02 - Segunda\.zip[\s\S]*· 1 print\r\n/);
+  const exportado = textoDoIndice(pacote, { comoPasta: true, faltando: [{ sessaoId: 'b' }] });
+  assert.match(exportado, /01 - Primeira\/\r\n/);
+  assert.match(exportado, /02 - Segunda\/\r\n[\s\S]*fora deste ZIP/);
+  assert.doesNotMatch(exportado.split('02 - Segunda')[0], /fora deste ZIP/);
 });
 
 test('sugestão de nome pelo site e pela data', () => {
@@ -92,7 +132,9 @@ test('registrar, mover e tirar ZIPs; escolha da próxima captura', async () => {
   assert.deepEqual(lista.find((p) => p.id === stf.id).itens.map((i) => i.downloadId), [8], 'mesma captura não se repete');
   assert.equal(lista[0].id, stf.id, 'o mais recente vem primeiro');
 
-  await tirarDoPacote(stf.id, 's1');
+  const depois = await tirarDoPacote(stf.id, 's1');
+  assert.deepEqual(depois.itens, [], 'devolve o pacote como ficou (para o índice)');
+  assert.equal(await tirarDoPacote(stf.id, 's1'), null, 'nada a tirar');
   await registrarZip(referencia(outro), item);
   ({ lista } = await lerPacotes());
   assert.equal(lista.find((p) => p.id === stf.id).itens.length, 0);

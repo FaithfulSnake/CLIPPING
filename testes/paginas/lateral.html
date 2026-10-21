@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <title>Portal com coluna lateral</title>
+    <style>
+      html, body { margin: 0; height: 100%; overflow: hidden; font: 16px/1.5 sans-serif; }
+      .topo { position: fixed; top: 0; left: 0; right: 0; height: 50px; background: #334155; color: #fff; display: flex; align-items: center; padding: 0 16px; }
+      #indice { position: absolute; top: 50px; bottom: 0; left: 0; width: 58%; overflow-y: auto; background: #f8fafc; }
+      #indice div { height: 40px; line-height: 40px; padding: 0 16px; border-bottom: 1px solid #e2e8f0; }
+      #texto { position: absolute; top: 50px; bottom: 0; right: 0; width: 42%; overflow-y: auto; border-left: 1px solid #cbd5e1; }
+      #texto h2 { position: sticky; top: 0; margin: 0; height: 44px; line-height: 44px; padding: 0 16px; background: #fde68a; }
+      #texto p { margin: 0; height: 36px; line-height: 36px; padding: 0 16px; }
+      #texto p:nth-child(odd) { background: #ecfeff; }
+    </style>
+  </head>
+  <body>
+    <div class="topo">Portal de teste: índice à esquerda, matéria à direita</div>
+    <nav id="indice"></nav>
+    <article id="texto"><h2>Matéria na coluna da direita</h2></article>
+    <script>
+      const indice = document.getElementById('indice');
+      const texto = document.getElementById('texto');
+      for (let i = 1; i <= 80; i++) {
+        const d = document.createElement('div');
+        d.textContent = `Índice ${i}`;
+        indice.append(d);
+      }
+      for (let i = 1; i <= 90; i++) {
+        const p = document.createElement('p');
+        p.textContent = `Parágrafo ${String(i).padStart(3, '0')}`;
+        texto.append(p);
+      }
+    </script>
+  </body>
+</html>

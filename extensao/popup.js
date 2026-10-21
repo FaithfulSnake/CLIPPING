@@ -1,27 +1,49 @@
-import { OPCOES_PADRAO, limparNome, normalizarOpcoes } from './comum.js';
+import { OPCOES_PADRAO, limparNome, normalizarOpcoes, opcoesIguais } from './comum.js';
+import { acesso, lerDestino, lerPergunta, maiorNumeroNaPasta } from './destino.js';
 import { lerOpcoes, salvarOpcoes } from './opcoes.js';
-import { caminhoDoZip, criarPacote, guardarEscolha, lerPacotes, pastaDoPacote, sugerirNomePacote } from './pacotes.js';
+import { chaveDoNome, criarPacote, guardarEscolha, lerPacotes, nomeNoPacote, nomeSolto, pastaDoPacote, proximoNumero, sugerirNomePacote } from './pacotes.js';
 
 const $ = (id) => document.getElementById(id);
 const NUMEROS = ['sobreposicao', 'espera', 'limite'];
 const CAIXAS = ['esconderFixos', 'incluirInfo', 'baixarAuto'];
+const ESCOLHAS = ['formato', 'areaRolagem', 'recorte'];
 
 let aba = null;
+let salvas = null; // configurações gravadas (só mudam ao clicar em Salvar)
 let pacotes = [];
 let sugestaoPacote = '';
+let destino = { modo: 'downloads', nome: 'Downloads' };
+let pergunta = false; // o Chrome pede para escolher onde salvar cada download
+const maioresNaPasta = new Map(); // pasta do pacote → maior número já gravado nela
 
 function preencher(opcoes) {
   for (const campo of NUMEROS) $(campo).value = opcoes[campo];
   for (const campo of CAIXAS) $(campo).checked = opcoes[campo];
-  document.querySelector(`input[name="formato"][value="${opcoes.formato}"]`).checked = true;
+  for (const campo of ESCOLHAS) document.querySelector(`input[name="${campo}"][value="${opcoes[campo]}"]`).checked = true;
+  verAlteracoes();
 }
 
 function coletar() {
   const opcoes = {};
   for (const campo of NUMEROS) opcoes[campo] = $(campo).value;
   for (const campo of CAIXAS) opcoes[campo] = $(campo).checked;
-  opcoes.formato = document.querySelector('input[name="formato"]:checked')?.value;
+  for (const campo of ESCOLHAS) opcoes[campo] = document.querySelector(`input[name="${campo}"]:checked`)?.value;
   return normalizarOpcoes(opcoes);
+}
+
+// O que está na tela e ainda não foi salvo fica marcado; só "Salvar" grava.
+function verAlteracoes() {
+  if (!salvas) return;
+  const atuais = coletar();
+  const alterado = !opcoesIguais(atuais, salvas);
+  $('nao-salvas').hidden = !alterado;
+  $('salvar').disabled = !alterado;
+  $('situacao-config').textContent = alterado ? 'Alterações não salvas: valem só para esta captura até você clicar em Salvar.' : '';
+  const passos = [];
+  if (atuais.areaRolagem === 'escolher') passos.push('clicar na parte que deve rolar');
+  if (atuais.recorte === 'regiao') passos.push('marcar a região do print');
+  $('dica-escolha').textContent = passos.length ? `Ao iniciar, a própria página vai pedir para você ${passos.join(' e ')}.` : '';
+  $('dica-escolha').hidden = !passos.length;
 }
 
 async function enviar(msg) {
@@ -139,8 +161,36 @@ function atualizarDestino() {
   } else if (valor !== 'novo') {
     novo.hidden = true;
   }
+  const nome = $('pasta').value || aba?.title;
+  if (!valor) {
+    $('pacote-destino').textContent = `Vai para: Downloads/${nomeSolto(nome)}`;
+    $('pacote-alerta').hidden = true;
+    return;
+  }
   const pasta = valor === 'novo' ? pastaDoPacote(novo.value || sugestaoPacote) : pacotes.find((p) => p.id === valor)?.pasta;
-  $('pacote-destino').textContent = `Vai para: Downloads/${caminhoDoZip(pasta, $('pasta').value || aba?.title)}`;
+  // "Novo pacote…" com o nome de um que já existe continua a numeração dele
+  const pacote = pacotes.find((p) => (valor === 'novo' ? chaveDoNome(p.pasta) === chaveDoNome(pasta) : p.id === valor));
+  const raiz = destino.modo === 'pasta' ? destino.nome : 'Downloads';
+  $('pacote-destino').textContent = `Vai para: ${raiz}/${pasta}/${nomeNoPacote(numeroPrevisto(pacote, pasta), nome)}`;
+  $('pacote-alerta').hidden = !(destino.modo !== 'pasta' && pergunta);
+}
+
+// Número que o ZIP vai ganhar no pacote (na pasta escolhida, também depois
+// dos ZIPs que já estão nela).
+function numeroPrevisto(pacote, pasta) {
+  const numero = proximoNumero(pacote, null);
+  if (destino.modo !== 'pasta') return numero;
+  if (!maioresNaPasta.has(pasta)) {
+    maioresNaPasta.set(pasta, 0);
+    lerMaiorNaPasta(pasta);
+  }
+  return Math.max(numero, maioresNaPasta.get(pasta) + 1);
+}
+
+async function lerMaiorNaPasta(pasta) {
+  if ((await acesso(destino.pasta)) !== 'granted') return;
+  maioresNaPasta.set(pasta, await maiorNumeroNaPasta(destino.pasta, pasta));
+  atualizarDestino();
 }
 
 // Pacote escolhido; "Novo pacote…" é criado agora (ou reaproveitado, se o nome já existe).
@@ -169,14 +219,18 @@ async function abrirPagina(arquivo) {
 }
 
 async function main() {
-  const [opcoes, abas, status, comandos, guardado, dadosPacotes] = await Promise.all([
+  const [opcoes, abas, status, comandos, guardado, dadosPacotes, destinoSalvo, perguntaSalva] = await Promise.all([
     lerOpcoes(),
     chrome.tabs.query({ active: true, currentWindow: true }),
     enviar({ tipo: 'status' }),
     chrome.commands.getAll(),
     chrome.storage.local.get(['abaPopup', 'noticias']),
     lerPacotes(),
+    lerDestino().catch(() => destino),
+    lerPergunta().catch(() => false),
   ]);
+  destino = destinoSalvo;
+  pergunta = perguntaSalva;
   mostrarAba(status?.ativo ? 'prints' : guardado.abaPopup || 'prints', false);
   const pendentes = guardado.noticias?.materias?.length || 0;
   if (pendentes) {
@@ -184,6 +238,7 @@ async function main() {
     $('noticias-pendentes').hidden = false;
   }
   aba = abas[0];
+  salvas = opcoes;
   preencher(opcoes);
   $('pasta').value = limparNome(aba?.title);
   pacotes = dadosPacotes.lista;
@@ -213,9 +268,7 @@ async function main() {
 }
 
 $('iniciar').addEventListener('click', async () => {
-  const opcoes = coletar();
-  preencher(opcoes);
-  await salvarOpcoes(opcoes);
+  const opcoes = coletar(); // o que está na tela vale para esta captura, sem gravar
   const pasta = limparNome($('pasta').value || aba?.title);
   $('pasta').value = pasta;
   const pacoteId = await resolverPacote();
@@ -225,6 +278,8 @@ $('iniciar').addEventListener('click', async () => {
   if (resposta?.erro) {
     mostrarConfig();
     mostrarAviso(resposta.erro, 'erro');
+  } else if (resposta?.escolhendo) {
+    window.close(); // a escolha continua na própria página
   }
 });
 
@@ -253,10 +308,21 @@ $('novo-pacote').addEventListener('keydown', (ev) => {
   if (ev.key === 'Enter' && !$('iniciar').disabled) $('iniciar').click();
 });
 
-$('restaurar').addEventListener('click', async () => {
+$('restaurar').addEventListener('click', () => {
   preencher(OPCOES_PADRAO);
-  await salvarOpcoes(OPCOES_PADRAO);
+  if (!$('salvar').disabled) $('situacao-config').textContent = 'Opções padrão na tela: clique em Salvar para manter.';
 });
+
+$('salvar').addEventListener('click', async () => {
+  const opcoes = coletar();
+  await salvarOpcoes(opcoes);
+  salvas = opcoes;
+  preencher(opcoes);
+  $('situacao-config').textContent = 'Configurações salvas.';
+});
+
+$('configuracoes').addEventListener('input', verAlteracoes);
+$('configuracoes').addEventListener('change', verAlteracoes);
 
 $('pasta').addEventListener('keydown', (ev) => {
   if (ev.key === 'Enter' && !$('iniciar').disabled) $('iniciar').click();

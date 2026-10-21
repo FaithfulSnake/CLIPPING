@@ -11,6 +11,8 @@
   --ok: #15803d;
   --falta: #b45309;
   --perigo: #b91c1c;
+  --aviso-fundo: #fef3c7;
+  --aviso-texto: #92400e;
   color-scheme: light dark;
 }
 
@@ -27,6 +29,8 @@
     --ok: #4ade80;
     --falta: #fbbf24;
     --perigo: #f87171;
+    --aviso-fundo: #422006;
+    --aviso-texto: #fcd34d;
   }
 }
 
@@ -136,6 +140,116 @@ input {
   border-radius: 6px;
   padding: 6px 8px;
   min-width: 0;
+}
+
+.destino {
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px;
+  background: var(--cartao);
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+  scroll-margin-top: 80px;
+}
+
+.destino.destacado {
+  border-color: var(--destaque);
+  box-shadow: 0 0 0 3px var(--destaque-suave);
+}
+
+.destino-cabeca {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+}
+
+.opcao {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.opcao input {
+  margin: 3px 0 0;
+  accent-color: var(--destaque);
+}
+
+.opcao span {
+  display: grid;
+  gap: 2px;
+  max-width: 80ch;
+}
+
+.opcao small {
+  color: var(--suave);
+  font-size: 13px;
+}
+
+.recomendado {
+  margin-left: 6px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 600;
+  background: var(--destaque-suave);
+  color: var(--destaque);
+}
+
+.pasta-linha {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-left: 26px;
+}
+
+.pasta-linha[hidden] {
+  display: none;
+}
+
+.pasta-nome {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.alerta {
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: 6px;
+  background: var(--aviso-fundo);
+  color: var(--aviso-texto);
+  max-width: 90ch;
+}
+
+.alerta[hidden] {
+  display: none;
+}
+
+.salvar-linha {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.selo-pendente {
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--aviso-fundo);
+  color: var(--aviso-texto);
+}
+
+.selo-pendente[hidden] {
+  display: none;
+}
+
+.espaco:empty {
+  display: none;
 }
 
 .form-novo {
@@ -286,6 +400,10 @@ input {
 
 .status.falta {
   color: var(--falta);
+}
+
+.status.neutro {
+  color: var(--suave);
 }
 
 .aviso-flutuante {

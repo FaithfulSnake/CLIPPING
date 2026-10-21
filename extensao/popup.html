@@ -28,6 +28,10 @@
           <div id="pacote-opcoes" class="pacote-opcoes"></div>
           <input id="novo-pacote" type="text" maxlength="60" spellcheck="false" autocomplete="off" aria-label="Nome do novo pacote" hidden />
           <p id="pacote-destino" class="destino"></p>
+          <p id="pacote-alerta" class="dica alerta" hidden>
+            O Chrome está pedindo onde salvar cada arquivo, então a pasta do pacote não é criada sozinha. Em
+            <strong>Gerenciar pacotes</strong>, escolha uma pasta para os pacotes: a extensão passa a gravar direto nela.
+          </p>
           <button id="abrir-pacotes" class="link" type="button">Gerenciar pacotes</button>
         </fieldset>
 
@@ -35,8 +39,36 @@
 
         <button id="iniciar" class="primario" type="button">Iniciar captura</button>
 
-        <details>
-          <summary>Opções</summary>
+        <p id="dica-escolha" class="dica destaque" hidden></p>
+
+        <details id="configuracoes">
+          <summary>Configurações <span id="nao-salvas" class="selo-pendente" hidden>não salvas</span></summary>
+          <fieldset class="grupo">
+            <legend>Área de rolagem</legend>
+            <label class="check">
+              <input type="radio" name="areaRolagem" value="auto" />
+              <span>Automática (a extensão encontra a parte que rola)</span>
+            </label>
+            <label class="check">
+              <input type="radio" name="areaRolagem" value="escolher" />
+              <span>Escolher na página antes de capturar (para colunas laterais ou painéis fora do centro)</span>
+            </label>
+          </fieldset>
+          <fieldset class="grupo">
+            <legend>Área do print</legend>
+            <label class="check">
+              <input type="radio" name="recorte" value="tela" />
+              <span>Tela inteira</span>
+            </label>
+            <label class="check">
+              <input type="radio" name="recorte" value="area" />
+              <span>Só a área que rola</span>
+            </label>
+            <label class="check">
+              <input type="radio" name="recorte" value="regiao" />
+              <span>Marcar uma região na página antes de capturar</span>
+            </label>
+          </fieldset>
           <label class="linha">
             <span>Sobreposição entre prints</span>
             <span><input id="sobreposicao" type="number" min="0" max="50" step="1" /> %</span>
@@ -68,7 +100,11 @@
             <input id="baixarAuto" type="checkbox" />
             <span>Baixar o ZIP automaticamente ao terminar</span>
           </label>
-          <button id="restaurar" class="link" type="button">Voltar às opções padrão</button>
+          <div class="salvar-linha">
+            <button id="salvar" class="primario" type="button" disabled>Salvar</button>
+            <button id="restaurar" class="link" type="button">Voltar às opções padrão</button>
+          </div>
+          <p id="situacao-config" class="dica" role="status"></p>
         </details>
 
         <p class="dica">

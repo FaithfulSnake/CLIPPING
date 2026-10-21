@@ -41,7 +41,7 @@ O nome da pasta vem preenchido com o título da página e pode ser trocado antes
 - **Sobreposição:** cada print repete o final do anterior (padrão: 10% da tela), então nenhuma linha fica cortada entre dois prints.
 - **Cabeçalhos e rodapés fixos:** a ferramenta mede a altura do que fica grudado no topo/rodapé (menu do site, aviso de cookies…) e desconta essa altura na rolagem, para o texto que passa por trás deles aparecer no print seguinte. Por padrão, eles também são escondidos a partir do 2º print (o 1º sempre sai como a página é).
 - **Carregamento:** depois de cada rolagem espera a página carregar (padrão: 700 ms). Se a página cresce ao chegar no fim ("carregar mais"), continua rolando.
-- **Sites com painel interno:** em sistemas e webmails em que só uma parte da tela rola, a ferramenta encontra e rola esse painel. Também funciona com páginas dentro de quadros (iframes) do mesmo site.
+- **Sites com painel interno:** em sistemas e webmails em que só uma parte da tela rola, a ferramenta encontra e rola esse painel. Também funciona com páginas dentro de quadros (iframes) do mesmo site. Se ela escolher a parte errada (por exemplo, uma coluna lateral), dá para **escolher na página** qual parte rola (veja abaixo).
 - **Página intacta:** rolagem suave e "encaixe" de rolagem são desligados só durante a captura; no fim tudo é restaurado, inclusive a posição em que você estava.
 
 ## 1. Extensão (Chrome / Edge)
@@ -65,42 +65,67 @@ O nome da pasta vem preenchido com o título da página e pode ser trocado antes
 1. Abra a página que vai transcrever (faça login antes, se precisar).
 2. Clique no ícone da extensão, na aba **Prints com rolagem**, confira o **nome da pasta** e escolha o **pacote** (veja abaixo).
 3. Clique em **Iniciar captura**. Não troque de aba nem minimize a janela até terminar. Se trocar, a captura pausa e continua quando você voltar.
-4. Ao terminar, abre uma aba com a prévia de todos os prints e o ZIP é baixado sozinho (o botão **Baixar ZIP** baixa de novo).
+4. Ao terminar, abre uma aba com a prévia de todos os prints e o ZIP é salvo sozinho (o botão **Baixar ZIP**, ou **Salvar no pacote**, salva de novo).
 
 **Atalho:** <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd> inicia com as últimas opções e o último pacote escolhido; apertar de novo para e salva o que já foi capturado. Para trocar a tecla: `chrome://extensions/shortcuts`.
 
+### Escolher a parte que rola e a área do print
+
+As duas opções ficam em **Configurações** e vêm desligadas (o padrão continua automático e com a tela inteira):
+
+- **Área de rolagem → Escolher na página antes de capturar:** para sites em que o texto fica numa coluna lateral ou num painel fora do centro. Ao clicar em **Iniciar captura**, a própria página mostra em azul a parte que rola sob o mouse; clique nela. **Automático** deixa a extensão decidir e **Usar a mesma de antes** repete a escolha feita da última vez naquele site.
+- **Área do print:**
+  - **Tela inteira** (padrão): cada print é a área visível inteira.
+  - **Só a área que rola:** cada print é recortado na parte que rola (sem menus e colunas em volta).
+  - **Marcar uma região na página antes de capturar:** arraste para desenhar um retângulo; cada print fica só com o que estiver dentro dele. <kbd>Enter</kbd> confirma, <kbd>Esc</kbd> cancela, **Tela inteira** desiste do recorte e **Usar a mesma de antes** repete a última região marcada naquele site (com a janela do mesmo tamanho).
+
+Com o recorte, a rolagem anda a altura da área recortada (menos a sobreposição), então nada do que passa por ela fica de fora.
+
 ### Pacotes de prints
 
-Para juntar os ZIPs de várias matérias (por exemplo, todas as de um site no mesmo dia), use **pacotes**. Cada pacote é uma pasta dentro de Downloads:
+Para juntar os ZIPs de várias matérias (por exemplo, todas as de um site no mesmo dia), use **pacotes**. Cada pacote é uma **pasta principal com o nome dele**, com os ZIPs **numerados na ordem das matérias** e um **Índice do pacote.txt** que identifica o pacote e lista o que tem dentro (página, endereço, data e quantidade de prints de cada matéria):
 
 ```
-Downloads/
-└── STF outubro/            ← o pacote
-    ├── Matéria 1.zip
-    ├── Matéria 2.zip
-    └── …
+Pacotes de prints/                 ← a pasta escolhida para os pacotes (ou Downloads)
+└── STF 21-10-2026/                ← o pacote
+    ├── 01 - STF afasta ICMS sobre transferências.zip
+    ├── 02 - Reforma tributária regras de transição.zip
+    ├── …
+    └── Índice do pacote.txt
 ```
 
-- **Antes de cada captura**, o popup pergunta o **pacote**: *Sem pacote* (o ZIP fica solto em Downloads, como antes), um dos pacotes que já existem (com quantos ZIPs cada um tem) ou **Novo pacote…**, que já sugere um nome com o site e a data (“ConJur 07-10-2026”). Embaixo aparece o caminho exato: “Vai para: Downloads/STF outubro/Matéria 1.zip”.
+- **Antes de cada captura**, o popup pergunta o **pacote**: *Sem pacote* (o ZIP fica solto em Downloads, como antes), um dos pacotes que já existem (com quantos ZIPs cada um tem) ou **Novo pacote…**, que já sugere um nome com o site e a data (“ConJur 07-10-2026”). Embaixo aparece o caminho exato, já com o número: “Vai para: Pacotes de prints/STF 21-10-2026/03 - Matéria.zip”.
 - A escolha fica marcada para a próxima captura, então na sequência de matérias do mesmo site é só clicar em **Iniciar captura**.
-- **Depois de baixar**, a página do resultado mostra onde o ZIP foi salvo (**Mostrar na pasta** abre o Explorador com o arquivo selecionado) e deixa **mover o ZIP para outro pacote** (ou criar um novo ali mesmo). A cópia que ficou no lugar antigo é apagada.
-- **Gerenciar pacotes** (no popup ou no resultado) abre a lista de pacotes: os ZIPs de cada um, se ainda estão na pasta, **Abrir pasta**, **Mostrar na pasta**, **Ver prints** (das 5 capturas mais recentes), **Tirar do pacote**, **Usar na próxima captura** e **Excluir**. Tirar e excluir só mexem na lista; os arquivos continuam em Downloads.
+- **Depois de salvar**, a página do resultado mostra onde o ZIP ficou e deixa **mover o ZIP para outro pacote** (ou criar um novo ali mesmo). A cópia que ficou no lugar antigo é apagada e o índice dos dois pacotes é atualizado.
+- **Gerenciar pacotes** (no popup ou no resultado) abre a lista de pacotes: os ZIPs de cada um e se ainda estão na pasta, **Exportar pacote (.zip)**, **Ver prints**, **Tirar do pacote**, **Usar na próxima captura** e **Excluir**. Tirar e excluir só mexem na lista (e no índice); os arquivos continuam na pasta.
+- **Exportar pacote (.zip)** junta o pacote inteiro num ZIP só: a pasta principal do pacote com o índice e **uma pasta para cada matéria**, já com os prints dentro (sem ZIP dentro de ZIP). Bom para mandar para alguém ou guardar.
 
-> Se o Chrome estiver configurado para **perguntar onde salvar cada arquivo**, ele vai abrir a janela de salvar a cada ZIP. Para os pacotes funcionarem sozinhos, desligue essa opção em `chrome://settings/downloads`.
+#### Onde salvar os pacotes
 
-### Opções (no popup, em "Opções")
+Fica no topo de **Gerenciar pacotes** e só muda ao clicar em **Salvar**:
 
-| Opção                                  | Padrão | Para que serve                                                          |
-| -------------------------------------- | ------ | ----------------------------------------------------------------------- |
-| Sobreposição entre prints              | 10%    | Quanto do final de um print se repete no próximo                        |
-| Espera após cada rolagem               | 700 ms | Aumente em sites lentos ou com muitas imagens                           |
-| Limite de prints                       | 400    | Evita rolar para sempre em páginas "infinitas"                          |
-| Formato                                | PNG    | PNG é melhor para leitura; JPEG gera arquivos menores                   |
-| Esconder cabeçalhos/rodapés fixos      | ligado | Tira menu e avisos fixos a partir do 2º print                           |
-| Incluir `info.txt`                     | ligado | Guarda o endereço e a data da captura junto dos prints                  |
-| Baixar o ZIP automaticamente           | ligado | Desligado, o ZIP só baixa ao clicar em **Baixar ZIP**                   |
+- **Uma pasta escolhida por você** (recomendado): clique em **Escolher pasta…** e crie/escolha uma pasta só para os pacotes, como `Documentos/Pacotes de prints` (o Chrome não deixa escolher a pasta Downloads ou Documentos inteira). A extensão grava **direto** nela, sem a janela “Salvar como”, e cada pacote ganha a pasta principal dele assim que é criado. De vez em quando (por exemplo, depois de reabrir o navegador) o Chrome pede para confirmar o acesso: clique em **Permitir**.
+- **Pasta Downloads do navegador** (padrão): o Chrome cria a pasta de cada pacote dentro de Downloads.
 
-A extensão guarda as 5 capturas mais recentes para baixar de novo; o botão **Apagar** remove uma delas.
+> Se o Chrome estiver configurado para **perguntar onde salvar cada arquivo** (`chrome://settings/downloads`), ele abre a janela “Salvar como” a cada ZIP e a pasta do pacote não é criada sozinha na pasta Downloads. A extensão percebe isso e avisa; a solução é escolher uma pasta para os pacotes (acima) ou desligar essa opção do Chrome.
+
+### Configurações (no popup)
+
+As mudanças valem para a próxima captura assim que você mexe, mas só ficam **gravadas ao clicar em Salvar** (enquanto isso aparece “não salvas”). **Voltar às opções padrão** põe o padrão na tela; clique em Salvar para manter.
+
+| Opção                                  | Padrão      | Para que serve                                                       |
+| -------------------------------------- | ----------- | -------------------------------------------------------------------- |
+| Área de rolagem                        | Automática  | **Escolher na página** para colunas laterais ou painéis fora do centro |
+| Área do print                          | Tela inteira | Recortar os prints na área que rola ou numa região marcada           |
+| Sobreposição entre prints              | 10%         | Quanto do final de um print se repete no próximo                     |
+| Espera após cada rolagem               | 700 ms      | Aumente em sites lentos ou com muitas imagens                        |
+| Limite de prints                       | 400         | Evita rolar para sempre em páginas "infinitas"                       |
+| Formato                                | PNG         | PNG é melhor para leitura; JPEG gera arquivos menores                |
+| Esconder cabeçalhos/rodapés fixos      | ligado      | Tira menu e avisos fixos a partir do 2º print                        |
+| Incluir `info.txt`                     | ligado      | Guarda o endereço, a data e o pacote da captura junto dos prints     |
+| Baixar o ZIP automaticamente           | ligado      | Desligado, o ZIP só é salvo ao clicar em **Baixar ZIP**              |
+
+A extensão guarda os prints das 5 capturas mais recentes fora de pacotes, para salvar de novo; os das matérias em pacotes ficam guardados para **Ver prints** e **Exportar pacote** até o pacote sair da lista. O botão **Apagar** remove uma captura.
 
 ## 2. Sem instalar (favorito)
 
@@ -133,6 +158,7 @@ Usa o compartilhamento de aba do próprio navegador (o mesmo das videochamadas) 
 - **PDF** aberto no leitor do navegador não rola automaticamente: baixe o PDF.
 - Conteúdo dentro de um **quadro (iframe) de outro site** não é rolado. Abra o quadro em uma aba própria (botão direito sobre ele → "Abrir quadro em nova guia", quando existir) e capture lá.
 - Só rola na vertical.
+- Com **região marcada**, entra no print o que passa por ela enquanto a página rola: o começo da página que fica acima da região (no topo) e o final que fica abaixo dela (no fim) não passam por ela. Para pegar tudo, marque a região de cima a baixo da área de leitura.
 - A extensão não funciona no Firefox.
 
 ---
@@ -182,7 +208,7 @@ Os avisos da lista ajudam a conferir antes de enviar: **sem link**, **confira a 
 
 ### Permissões da extensão
 
-Além do necessário para os prints, a extensão pede para **gerenciar downloads** (salvar os ZIPs na pasta do pacote e mostrá-los na pasta), **ler a área de transferência** (botão "Colar" das notícias) e **ver os títulos e endereços das abas abertas** (para achar o link da matéria sozinha). Nada sai do seu computador.
+Além do necessário para os prints, a extensão pede para **gerenciar downloads** (salvar os ZIPs na pasta do pacote e mostrá-los na pasta), **ler a área de transferência** (botão "Colar" das notícias) e **ver os títulos e endereços das abas abertas** (para achar o link da matéria sozinha). A pasta escolhida para os pacotes só é acessada depois que você a escolhe e o Chrome confirma o acesso. Nada sai do seu computador.
 
 ## Para quem for mexer no código
 
@@ -190,13 +216,16 @@ Além do necessário para os prints, a extensão pede para **gerenciar downloads
 extensao/            a extensão (Manifest V3)
   manifest.json
   background.js      controla a captura (service worker)
-  pagina.js          roda dentro da página: escolhe o que rolar e mede cabeçalhos/rodapés fixos
+  pagina.js          roda dentro da página: escolhe o que rolar, mede cabeçalhos/rodapés fixos e o recorte
+  seletor.js         escolha na página antes da captura (parte que rola e região do print)
   comum.js           laço de captura, nomes de arquivo e info.txt (compartilhado com o favorito)
   zip.js             gera o ZIP (sem bibliotecas externas)
   db.js, opcoes.js   armazenamento das capturas e das opções
   popup.*            janela do ícone (abas das ferramentas e escolha do pacote)
   resultado.*        página com a prévia dos prints, onde o ZIP foi salvo e mover de pacote
-  pacotes.js         pacotes de prints: nomes de pasta aceitos pelo Chrome e a lista guardada
+  pacotes.js         pacotes de prints: nomes aceitos pelo Chrome, numeração, índice e a lista guardada
+  destino.js         onde gravar: pasta escolhida (File System Access) ou Downloads, e o aviso do "Salvar como"
+  exportar.js        ZIP de uma captura e ZIP do pacote inteiro
   pacotes.html/.css, gerenciador.js   página "Pacotes de prints"
   noticias.html/.css página da ferramenta Notícias jurídicas
   noticias.js        página: colar, lista, prévia, copiar (fonte do noticias-pagina.js)
@@ -215,7 +244,8 @@ Comandos (precisam do Node.js 20+; os de ponta a ponta precisam do Playwright co
 
 ```sh
 npm test            # testes unitários
-npm run e2e         # abre o Chromium com a extensão: captura testes/paginas (inclusive em pacotes) e monta os e-mails de testes/noticias
+npm run e2e         # abre o Chromium com a extensão: captura testes/paginas (seletor, recorte, pacotes) e monta os e-mails de testes/noticias
+SO=pacotes npm run e2e   # só os blocos com esses nomes (separados por vírgula)
 npm run gerar       # regenera os arquivos gerados depois de mudar extensao/ ou script/fonte/
 npm run empacotar   # gera dist/ferramentas-fanjas.zip para distribuir a extensão
 node ferramentas/gerar-icones.cjs   # regenera os PNGs a partir de extensao/icones/icone.svg

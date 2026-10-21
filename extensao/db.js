@@ -1,16 +1,26 @@
 // Guarda as capturas no IndexedDB da extensão, para a página de resultado
-// montar o ZIP mesmo depois que o service worker for encerrado.
+// montar o ZIP mesmo depois que o service worker for encerrado. Também guarda
+// ajustes que não cabem no chrome.storage (como a pasta escolhida para os pacotes).
 
 let conexao = null;
 
 function abrir() {
   conexao ??= new Promise((pronto, falha) => {
-    const req = indexedDB.open('clipping-prints', 1);
+    const req = indexedDB.open('clipping-prints', 2);
     req.onupgradeneeded = () => {
-      req.result.createObjectStore('sessoes', { keyPath: 'id' });
-      req.result.createObjectStore('prints'); // chave: [idDaSessao, indice]
+      const db = req.result;
+      if (!db.objectStoreNames.contains('sessoes')) db.createObjectStore('sessoes', { keyPath: 'id' });
+      if (!db.objectStoreNames.contains('prints')) db.createObjectStore('prints'); // chave: [idDaSessao, indice]
+      if (!db.objectStoreNames.contains('ajustes')) db.createObjectStore('ajustes');
     };
-    req.onsuccess = () => pronto(req.result);
+    req.onsuccess = () => {
+      // outra página abrindo uma versão nova do banco: libera esta conexão
+      req.result.onversionchange = () => {
+        req.result.close();
+        conexao = null;
+      };
+      pronto(req.result);
+    };
     req.onerror = () => falha(req.error);
   });
   return conexao;
@@ -45,9 +55,22 @@ export const apagarSessao = (id) =>
     tx.objectStore('prints').delete(printsDa(id));
   });
 
+// Muda alguns campos de uma captura já gravada.
+export const atualizarSessao = (id, mudancas) =>
+  transacao('sessoes', 'readwrite', (tx) => {
+    const loja = tx.objectStore('sessoes');
+    const req = loja.get(id);
+    req.onsuccess = () => req.result && loja.put({ ...req.result, ...mudancas });
+  });
+
 // Mantém só as capturas mais recentes, para não acumular espaço em disco.
+// As que estão em pacote ficam guardadas (servem para exportar o pacote).
 export async function apagarAntigas(manter) {
   const sessoes = await transacao('sessoes', 'readonly', (tx) => tx.objectStore('sessoes').getAll());
-  sessoes.sort((a, b) => b.data - a.data);
-  for (const s of sessoes.slice(manter)) await apagarSessao(s.id);
+  const soltas = sessoes.filter((s) => !s.pacote).sort((a, b) => b.data - a.data);
+  for (const s of soltas.slice(manter)) await apagarSessao(s.id);
 }
+
+export const lerAjuste = (chave) => transacao('ajustes', 'readonly', (tx) => tx.objectStore('ajustes').get(chave));
+
+export const gravarAjuste = (chave, valor) => transacao('ajustes', 'readwrite', (tx) => tx.objectStore('ajustes').put(valor, chave));

@@ -1,7 +1,22 @@
-import { avisoMotivo, nomePrint, textoInfo } from './comum.js';
+import { avisoMotivo, nomePrint } from './comum.js';
 import { apagarSessao, lerPrints, lerSessao, salvarSessao } from './db.js';
-import { caminhoDoZip, criarPacote, lerPacotes, referencia, registrarZip, sugerirNomePacote, tirarDoPacote } from './pacotes.js';
-import { criarZip } from './zip.js';
+import {
+  acesso,
+  apagarCopia,
+  apagarDownload,
+  atualizarIndice,
+  baixarArquivo,
+  copiaExiste,
+  dentroDaPasta,
+  explicarErro,
+  gravarNaPasta,
+  lerDestino,
+  lerPergunta,
+  maiorNumeroNaPasta,
+  nomeDoCaminho,
+} from './destino.js';
+import { zipDaCaptura } from './exportar.js';
+import { criarPacote, lerPacotes, nomeNoPacote, nomeSolto, proximoNumero, referencia, registrarZip, sugerirNomePacote, tirarDoPacote } from './pacotes.js';
 
 const $ = (id) => document.getElementById(id);
 const id = new URLSearchParams(location.search).get('sessao');
@@ -9,119 +24,86 @@ const urls = [];
 
 let sessao = null;
 let prints = [];
-let zip = null;
 let pacotes = [];
+let destino = { modo: 'downloads', pasta: null, nome: 'Downloads' };
+let zipFeito = null; // { chave, blob }: o info.txt do ZIP cita o pacote, então muda com ele
+let alertaAberto = '';
 
 const estado = (texto) => ($('estado').textContent = texto);
 
-async function montarZip() {
-  const pasta = sessao.pasta;
-  const entradas = [{ nome: `${pasta}/` }];
-  for (const [i, blob] of prints.entries()) {
-    entradas.push({
-      nome: `${pasta}/${nomePrint(i + 1, prints.length, sessao.formato)}`,
-      dados: new Uint8Array(await blob.arrayBuffer()),
-    });
-  }
-  if (sessao.incluirInfo) {
-    entradas.push({ nome: `${pasta}/info.txt`, dados: new TextEncoder().encode(textoInfo({ ...sessao, total: prints.length })) });
-  }
-  return criarZip(entradas, new Date(sessao.data));
+class SemAcesso extends Error {}
+
+// ---------------------------------------------------------------- alertas
+
+function alertar(tipo, texto, acoes = []) {
+  $('alerta-texto').textContent = texto;
+  $('alerta-acoes').replaceChildren(
+    ...acoes.map(([rotulo, acao, primario]) => {
+      const b = Object.assign(document.createElement('button'), { type: 'button', textContent: rotulo, className: primario ? 'primario' : '' });
+      b.addEventListener('click', acao);
+      return b;
+    }),
+  );
+  $('alerta').hidden = false;
+  alertaAberto = tipo;
 }
 
-// Plano B, sem a API de downloads: baixa direto em Downloads (sem pasta).
-function baixarPorLink(blob, nome) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = nome;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+function fecharAlerta(tipo) {
+  if (tipo && tipo !== alertaAberto) return;
+  $('alerta').hidden = true;
+  alertaAberto = '';
 }
 
-function esperarDownload(idDownload) {
-  return new Promise((pronto) => {
-    const terminar = (situacao, erro) => {
-      chrome.downloads.onChanged.removeListener(ouvir);
-      pronto({ situacao, erro });
-    };
-    const ouvir = (d) => {
-      if (d.id === idDownload && d.state && d.state.current !== 'in_progress') terminar(d.state.current, d.error?.current);
-    };
-    chrome.downloads.onChanged.addListener(ouvir);
-    // pode ter terminado antes de o ouvinte entrar
-    chrome.downloads.search({ id: idDownload }).then(([d]) => {
-      if (d && d.state !== 'in_progress') terminar(d.state, d.error);
-    });
-  });
+const abrirGerenciador = () => chrome.tabs.create({ url: chrome.runtime.getURL('pacotes.html#destino') });
+
+function avisarPergunta(pasta) {
+  alertar(
+    'pergunta',
+    `O Chrome abre a janela “Salvar como” porque está configurado para perguntar onde salvar cada arquivo. Para o ZIP ficar no pacote, salve-o dentro da pasta “${pasta}” em Downloads (crie a pasta se ela não existir). Para não precisar fazer isso a cada ZIP, escolha uma pasta para os pacotes em Gerenciar pacotes: a extensão passa a gravar direto nela, com uma pasta para cada pacote.`,
+    [
+      ['Escolher pasta para os pacotes', abrirGerenciador, true],
+      ['Configurações de download do Chrome', () => chrome.tabs.create({ url: 'chrome://settings/downloads' })],
+    ],
+  );
 }
 
-// Salva o ZIP em Downloads/<caminho> (o navegador cria a pasta do pacote).
-// Devolve { id, nome } do arquivo salvo; o nome muda para "Nome (1).zip" se já existir.
-async function salvarNoDisco(caminho) {
-  const url = URL.createObjectURL(zip);
-  try {
-    const idDownload = await chrome.downloads.download({ url, filename: caminho, conflictAction: 'uniquify', saveAs: false });
-    const fim = await esperarDownload(idDownload);
-    if (fim.situacao !== 'complete') {
-      throw new Error(fim.erro === 'USER_CANCELED' ? 'o download foi cancelado' : `o download falhou (${fim.erro || 'sem detalhes'})`);
-    }
-    const [item] = await chrome.downloads.search({ id: idDownload });
-    return { id: idDownload, nome: item?.filename.split(/[\\/]/).pop() || caminho.split('/').pop() };
-  } finally {
-    URL.revokeObjectURL(url);
-  }
+function pedirAcesso(ref) {
+  alertar(
+    'acesso',
+    `Para salvar no pacote, o Chrome precisa confirmar que a extensão pode gravar na pasta “${destino.nome}” (ele pede isso de vez em quando, por exemplo depois de reabrir o navegador).`,
+    [
+      ['Permitir e salvar', () => salvarEm(ref), true],
+      ['Salvar em Downloads desta vez', () => salvarEm(ref, { emDownloads: true })],
+    ],
+  );
 }
 
-async function salvar(pasta) {
-  zip ??= await montarZip();
-  const caminho = caminhoDoZip(pasta, sessao.pasta);
-  if (!globalThis.chrome?.downloads?.download) {
-    baixarPorLink(zip, caminho.split('/').pop());
-    return { id: null, nome: caminho.split('/').pop(), pasta: '' };
-  }
-  try {
-    return { ...(await salvarNoDisco(caminho)), pasta: pasta || '' };
-  } catch (e) {
-    if (!/invalid filename/i.test(e.message)) throw e;
-    // nome recusado pelo navegador: usa um nome simples na mesma pasta
-    return { ...(await salvarNoDisco(caminho.replace(/[^/]+$/, `prints-${sessao.id}.zip`))), pasta: pasta || '' };
-  }
+// ---------------------------------------------------------------- onde está salvo
+
+// Onde o ZIP desta captura foi salvo. As capturas da versão 1.3 guardavam isso em "download".
+function salvoAtual() {
+  if (sessao.salvo) return sessao.salvo;
+  const d = sessao.download;
+  if (d) return { local: 'downloads', id: d.id, arquivo: d.nome, pasta: d.pasta || '', pacoteId: d.pasta ? (sessao.pacote?.id ?? null) : null };
+  if (sessao.baixado) return { local: 'downloads', id: null, arquivo: nomeSolto(sessao.pasta), pasta: '', pacoteId: null };
+  return null;
 }
 
-const itemDoPacote = () => ({
-  sessaoId: sessao.id,
-  downloadId: sessao.download?.id ?? null,
-  arquivo: sessao.download?.nome || `${sessao.pasta}.zip`,
-  titulo: sessao.titulo,
-  url: sessao.url,
-  total: prints.length,
-  data: sessao.data,
-});
+const foraDaPasta = (s) => s.local === 'downloads' && s.pasta && s.completo && !dentroDaPasta(s.completo, s.pasta);
 
-// Apaga do disco a cópia anterior (é o mesmo ZIP, já salvo no lugar novo).
-async function apagarArquivo(idDownload) {
-  try {
-    const [d] = await chrome.downloads.search({ id: idDownload });
-    if (d?.exists && d.state === 'complete') await chrome.downloads.removeFile(idDownload);
-    await chrome.downloads.erase({ id: idDownload });
-    return Boolean(d?.exists);
-  } catch {
-    return false;
-  }
-}
-
-function ocupado(sim) {
-  for (const botao of ['baixar', 'mover', 'apagar']) $(botao).disabled = sim;
-  if (!sim) atualizarBotaoMover();
+function onde(s) {
+  if (s.local === 'pasta') return `${s.raiz}/${s.pasta}/${s.arquivo}`;
+  if (s.completo && (s.perguntou || foraDaPasta(s))) return s.completo;
+  return `Downloads/${s.pasta ? `${s.pasta}/` : ''}${s.arquivo}`;
 }
 
 function mostrarDestino() {
-  const d = sessao.download;
-  if (d) $('destino-texto').textContent = `Salvo em Downloads/${d.pasta ? `${d.pasta}/` : ''}${d.nome}`;
-  else if (sessao.baixado) $('destino-texto').textContent = 'Baixado na pasta Downloads.';
-  else $('destino-texto').textContent = 'O ZIP ainda não foi baixado.';
-  $('mostrar').hidden = !d?.id;
+  const s = salvoAtual();
+  if (!s) $('destino-texto').textContent = 'O ZIP ainda não foi salvo.';
+  else if (s.pacoteId) $('destino-texto').textContent = `Salvo no pacote “${sessao.pacote?.nome || s.pasta}”: ${onde(s)}${foraDaPasta(s) ? ' (fora da pasta do pacote)' : ''}`;
+  else $('destino-texto').textContent = `Salvo em ${onde(s)}`;
+  $('mostrar').hidden = !(s?.local === 'downloads' && s.id != null);
+  $('baixar').textContent = sessao.pacote ? 'Salvar no pacote' : 'Baixar ZIP';
 }
 
 async function desenharPacotes() {
@@ -140,71 +122,140 @@ async function desenharPacotes() {
 
 function atualizarBotaoMover() {
   const valor = $('pacote-select').value;
-  const baixado = Boolean(sessao.download || sessao.baixado);
-  $('mover').textContent = baixado ? 'Mover para este pacote' : 'Salvar neste pacote';
-  $('mover').disabled = baixado && valor !== 'novo' && valor === (sessao.pacote?.id ?? '');
+  const salvo = Boolean(salvoAtual());
+  if (valor) $('mover').textContent = salvo ? 'Mover para este pacote' : 'Salvar neste pacote';
+  else $('mover').textContent = salvo ? 'Tirar do pacote (salvar solto)' : 'Salvar solto em Downloads';
+  $('mover').disabled = salvo && valor !== 'novo' && valor === (sessao.pacote?.id ?? '');
   $('pacote-novo').hidden = valor !== 'novo';
 }
 
-async function baixarZip() {
-  ocupado(true);
-  estado('Montando o ZIP…');
+function ocupado(sim) {
+  for (const botao of ['baixar', 'mover', 'apagar']) $(botao).disabled = sim;
+  if (!sim) atualizarBotaoMover();
+}
+
+// ---------------------------------------------------------------- salvar
+
+async function zipPara(ref) {
+  const chave = ref?.id ?? '';
+  if (zipFeito?.chave !== chave) zipFeito = { chave, blob: await zipDaCaptura(sessao, prints, ref) };
+  return zipFeito.blob;
+}
+
+// Downloads/<caminho>; um nome recusado pelo navegador vira um nome simples na mesma pasta.
+async function baixar(blob, caminho, aoPerguntar, conflito = 'uniquify') {
   try {
-    const salvo = await salvar(sessao.pacote?.pasta);
-    sessao.download = salvo.id ? salvo : null;
-    sessao.baixado = true;
-    await salvarSessao(sessao);
-    if (sessao.pacote && salvo.id) await registrarZip(sessao.pacote, itemDoPacote());
-    estado(
-      sessao.pacote && !salvo.id
-        ? 'O navegador não deixou criar a pasta do pacote: o ZIP foi salvo direto em Downloads.'
-        : `Pronto: a pasta “${sessao.pasta}” dentro do ZIP tem os prints numerados na ordem da página.`,
-    );
-    mostrarDestino();
-    await desenharPacotes();
+    return await baixarArquivo(blob, caminho, { aoPerguntar, conflito });
   } catch (e) {
-    estado(`Não foi possível salvar o ZIP: ${e.message}`);
-  } finally {
-    ocupado(false);
+    if (!/invalid filename/i.test(e.message)) throw e;
+    return baixarArquivo(blob, caminho.replace(/[^/]+$/, `prints-${sessao.id}.zip`), { aoPerguntar });
   }
 }
 
-// Põe o ZIP no pacote escolhido (ou tira de pacote). Se já estava salvo em
-// outro lugar, a cópia antiga é apagada depois que a nova estiver salva.
+async function salvarSolto() {
+  const r = await baixar(await zipPara(null), nomeSolto(sessao.pasta));
+  return { local: 'downloads', pacoteId: null, pasta: '', arquivo: nomeDoCaminho(r.completo) || nomeSolto(sessao.pasta), id: r.id, completo: r.completo, perguntou: r.perguntou };
+}
+
+// Grava o ZIP na pasta principal do pacote, numerado na ordem das matérias, e
+// atualiza o "Índice do pacote.txt".
+async function salvarNoPacote(ref, anterior, emDownloads) {
+  const blob = await zipPara(ref);
+  const pacote = (await lerPacotes()).lista.find((p) => p.id === ref.id);
+  const naPasta = destino.modo === 'pasta' && !emDownloads;
+  let numero = proximoNumero(pacote, sessao.id);
+  // matéria nova: depois também do que ficou na pasta (ZIP tirado do pacote, pacote antigo com o mesmo nome)
+  if (naPasta && !pacote?.itens.some((i) => i.sessaoId === sessao.id)) numero = Math.max(numero, (await maiorNumeroNaPasta(destino.pasta, ref.pasta)) + 1);
+  const arquivo = nomeNoPacote(numero, sessao.pasta);
+  const item = { sessaoId: sessao.id, numero, titulo: sessao.titulo, url: sessao.url, total: prints.length, data: sessao.data };
+
+  if (naPasta) {
+    await gravarNaPasta(destino.pasta, ref.pasta, arquivo, blob);
+    const atualizado = await registrarZip(ref, { ...item, arquivo, local: 'pasta', raiz: destino.nome });
+    await atualizarIndice(destino, atualizado, 'pasta');
+    return { local: 'pasta', pacoteId: ref.id, pasta: ref.pasta, raiz: destino.nome, arquivo, numero };
+  }
+  // Salvar de novo no mesmo pacote troca o arquivo anterior (é o mesmo ZIP):
+  // no mesmo lugar, o novo substitui; em outro (nome antigo, outra pasta), o antigo é apagado depois.
+  let antigo = null;
+  if (anterior?.local === 'downloads' && anterior.pacoteId === ref.id && anterior.id != null) [antigo] = await chrome.downloads.search({ id: anterior.id });
+  const substituir = Boolean(antigo?.exists && dentroDaPasta(antigo.filename, ref.pasta) && nomeDoCaminho(antigo.filename) === arquivo);
+  const r = await baixar(blob, `${ref.pasta}/${arquivo}`, () => avisarPergunta(ref.pasta), substituir ? 'overwrite' : 'uniquify');
+  if (antigo && antigo.id !== r.id) {
+    if (antigo.filename === r.completo) await chrome.downloads.erase({ id: antigo.id });
+    else await apagarDownload(antigo.id);
+  }
+  const final = nomeDoCaminho(r.completo) || arquivo;
+  const atualizado = await registrarZip(ref, { ...item, arquivo: final, local: 'downloads', downloadId: r.id });
+  if (!r.perguntou) await atualizarIndice(destino, atualizado, 'downloads');
+  return { local: 'downloads', pacoteId: ref.id, pasta: ref.pasta, arquivo: final, numero, id: r.id, completo: r.completo, perguntou: r.perguntou };
+}
+
+const mesmoLugar = (a, b) => a.local === b.local && (a.pacoteId ?? null) === (b.pacoteId ?? null);
+
+// O ZIP estava em outro lugar: apaga a cópia antiga (é o mesmo ZIP) e tira a
+// captura do pacote de onde ela saiu.
+async function tirarDoLugarAnterior(anterior, novo) {
+  let texto = '';
+  if (await apagarCopia(destino, anterior)) texto = ' A cópia que estava no lugar anterior foi apagada.';
+  else if ((await copiaExiste(destino, anterior)) !== false) texto = ` A cópia anterior continua em ${onde(anterior)}; apague-a se não precisar dela.`;
+  if (anterior.pacoteId && anterior.pacoteId !== novo.pacoteId) {
+    const saiu = await tirarDoPacote(anterior.pacoteId, sessao.id);
+    if (saiu) await atualizarIndice(destino, saiu, anterior.local);
+  }
+  return texto;
+}
+
+// Salva o ZIP no pacote ref (ou solto em Downloads, se ref for null).
+async function salvarEm(ref, { emDownloads = false } = {}) {
+  ocupado(true);
+  fecharAlerta('acesso');
+  try {
+    destino = await lerDestino();
+    if (ref && destino.modo === 'pasta' && !emDownloads) {
+      // logo depois de um clique o Chrome deixa pedir a permissão; sem clique, mostra o botão
+      if ((await acesso(destino.pasta, navigator.userActivation?.isActive)) !== 'granted') throw new SemAcesso();
+    } else if (ref && (await lerPergunta())) {
+      avisarPergunta(ref.pasta); // a janela "Salvar como" vai abrir
+    }
+    estado('Montando o ZIP…');
+    const anterior = salvoAtual();
+    const novo = ref ? await salvarNoPacote(ref, anterior, emDownloads) : await salvarSolto();
+    Object.assign(sessao, { salvo: novo, baixado: true, pacote: ref });
+    delete sessao.download;
+    await salvarSessao(sessao);
+    if (!novo.perguntou) fecharAlerta('pergunta');
+
+    let mensagem = ref
+      ? `Pronto: ZIP nº ${novo.numero} do pacote “${ref.nome}”. Dentro dele, a pasta “${sessao.pasta}” tem os prints numerados na ordem da página.`
+      : `Pronto: a pasta “${sessao.pasta}” dentro do ZIP tem os prints numerados na ordem da página.`;
+    if (foraDaPasta(novo)) mensagem += ` Atenção: ele foi salvo fora da pasta “${ref.pasta}” do pacote.`;
+    if (anterior && !mesmoLugar(anterior, novo)) mensagem += await tirarDoLugarAnterior(anterior, novo);
+    estado(mensagem);
+  } catch (e) {
+    if (e instanceof SemAcesso) {
+      estado('');
+      pedirAcesso(ref);
+    } else {
+      estado(`Não foi possível salvar o ZIP: ${explicarErro(e, destino)}.`);
+    }
+  } finally {
+    ocupado(false);
+    mostrarDestino();
+    await desenharPacotes();
+  }
+}
+
 async function moverParaPacote() {
   const valor = $('pacote-select').value;
-  ocupado(true);
-  estado('Salvando…');
-  try {
-    let destino = null;
-    if (valor === 'novo') destino = referencia(await criarPacote($('pacote-novo').value.trim() || sugerirNomePacote(sessao.url)));
-    else if (valor) destino = referencia(pacotes.find((p) => p.id === valor) ?? (sessao.pacote?.id === valor ? sessao.pacote : null));
-    const anterior = { pacote: sessao.pacote, download: sessao.download, baixado: sessao.baixado };
-
-    const salvo = await salvar(destino?.pasta);
-    sessao.pacote = destino;
-    sessao.download = salvo.id ? salvo : null;
-    sessao.baixado = true;
-    await salvarSessao(sessao);
-    if (anterior.pacote && anterior.pacote.id !== destino?.id) await tirarDoPacote(anterior.pacote.id, sessao.id);
-    if (destino && salvo.id) await registrarZip(destino, itemDoPacote());
-
-    let mensagem = destino ? `ZIP salvo no pacote “${destino.nome}”.` : 'ZIP salvo solto em Downloads.';
-    if (anterior.download?.id && anterior.download.id !== salvo.id) {
-      if (await apagarArquivo(anterior.download.id)) mensagem += ' A cópia que estava no lugar anterior foi apagada.';
-    } else if (anterior.baixado && !anterior.download) {
-      mensagem += ' A cópia baixada antes continua em Downloads; apague-a se quiser.';
-    }
-    estado(mensagem);
-    $('pacote-novo').value = '';
-    mostrarDestino();
-    await desenharPacotes();
-  } catch (e) {
-    estado(`Não foi possível salvar no pacote: ${e.message}`);
-  } finally {
-    ocupado(false);
-  }
+  let ref = null;
+  if (valor === 'novo') ref = referencia(await criarPacote($('pacote-novo').value.trim() || sugerirNomePacote(sessao.url)));
+  else if (valor) ref = referencia(pacotes.find((p) => p.id === valor) ?? (sessao.pacote?.id === valor ? sessao.pacote : null));
+  await salvarEm(ref);
+  if (valor === 'novo') $('pacote-novo').value = '';
 }
+
+// ---------------------------------------------------------------- página
 
 function mostrarGrade() {
   const grade = $('grade');
@@ -238,10 +289,11 @@ async function main() {
   if (!sessao) {
     $('pasta').textContent = 'Captura não encontrada';
     $('destino-texto').textContent = '';
-    estado('Ela pode ter sido apagada (a extensão guarda só as 5 capturas mais recentes). O ZIP já salvo continua na pasta Downloads.');
+    estado('Ela pode ter sido apagada (a extensão guarda as 5 capturas mais recentes fora de pacotes). O ZIP já salvo continua no disco.');
     return;
   }
   prints = await lerPrints(id);
+  destino = await lerDestino();
   document.title = `${sessao.pasta} – ${prints.length} prints`;
   $('pasta').textContent = sessao.pasta;
 
@@ -267,7 +319,7 @@ async function main() {
   mostrarDestino();
   await desenharPacotes();
 
-  $('baixar').addEventListener('click', baixarZip);
+  $('baixar').addEventListener('click', () => salvarEm(sessao.pacote));
   $('mover').addEventListener('click', moverParaPacote);
   $('pacote-select').addEventListener('change', () => {
     atualizarBotaoMover();
@@ -281,15 +333,16 @@ async function main() {
     if (ev.key === 'Enter' && !$('mover').disabled) moverParaPacote();
   });
   $('mostrar').addEventListener('click', async () => {
-    const [d] = await chrome.downloads.search({ id: sessao.download.id });
+    const s = salvoAtual();
+    const [d] = await chrome.downloads.search({ id: s.id });
     if (!d?.exists) {
-      estado('O arquivo não está mais lá: foi apagado ou movido. Use “Baixar ZIP” para salvar de novo.');
+      estado(`O arquivo não está mais lá: foi apagado ou movido. Use “${$('baixar').textContent}” para salvar de novo.`);
       return;
     }
-    chrome.downloads.show(sessao.download.id);
+    chrome.downloads.show(s.id);
   });
   $('apagar').addEventListener('click', async () => {
-    if (!confirm('Apagar estes prints da memória da extensão? O ZIP já baixado não é afetado.')) return;
+    if (!confirm('Apagar estes prints da memória da extensão? O ZIP já salvo não é afetado.')) return;
     await apagarSessao(id);
     for (const url of urls) URL.revokeObjectURL(url);
     $('grade').replaceChildren();
@@ -298,7 +351,7 @@ async function main() {
   });
   ocupado(false);
 
-  if (sessao.baixarAuto && !sessao.baixado) await baixarZip();
+  if (sessao.baixarAuto && !salvoAtual()) await salvarEm(sessao.pacote);
 }
 
 main().catch((e) => {

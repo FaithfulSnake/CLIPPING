@@ -15,6 +15,8 @@
   const COBERTURA_MAXIMA = 0.6;
 
   let estado = null;
+  // Área de rolagem escolhida na página pelo seletor (seletor.js), usada na próxima captura.
+  let escolhida = null;
 
   // Percorre todos os elementos, inclusive dentro de shadow DOM aberto.
   function* elementos(raiz) {
@@ -97,6 +99,189 @@
     return rolou ? alcance : 0;
   }
 
+  // Deslocamento de uma janela (quadro/iframe) em relação à janela principal.
+  function deslocamento(win) {
+    let x = 0;
+    let y = 0;
+    for (let w = win; w && w !== window && w.frameElement; w = w.parent) {
+      const quadro = w.frameElement;
+      const r = quadro.getBoundingClientRect();
+      x += r.left + quadro.clientLeft;
+      y += r.top + quadro.clientTop;
+    }
+    return { x, y };
+  }
+
+  // Região de uma área de rolagem em coordenadas da tela (janela principal), cortada pela tela.
+  function regiaoNaTela(sc) {
+    const r = sc.regiao();
+    const d = deslocamento(sc.win);
+    return {
+      top: Math.max(0, r.top + d.y),
+      left: Math.max(0, r.left + d.x),
+      bottom: Math.min(innerHeight, r.bottom + d.y),
+      right: Math.min(innerWidth, r.right + d.x),
+    };
+  }
+
+  // Parte da área que rola que entra no print. Com recorte, só o que fica
+  // dentro dele: a rolagem passa a andar pela altura do recorte.
+  function regiaoUtil(sc) {
+    const reg = sc.regiao();
+    const corte = estado?.recorte;
+    if (!corte) return reg;
+    const d = deslocamento(sc.win);
+    const util = {
+      top: Math.max(reg.top, corte.y - d.y),
+      left: Math.max(reg.left, corte.x - d.x),
+      bottom: Math.min(reg.bottom, corte.y + corte.h - d.y),
+      right: Math.min(reg.right, corte.x + corte.w - d.x),
+    };
+    // recorte fora da área que rola: a rolagem segue pela área inteira
+    return util.bottom - util.top >= 20 && util.right - util.left >= 20 ? util : reg;
+  }
+
+  // Recorte final em coordenadas da tela: a área que rola ou a região marcada.
+  function definirRecorte(config, sc) {
+    let r = null;
+    if (config?.modo === 'area') r = regiaoNaTela(sc);
+    else if (config?.modo === 'regiao' && config.retangulo) {
+      const q = config.retangulo;
+      r = { top: q.y, left: q.x, bottom: q.y + q.h, right: q.x + q.w };
+    }
+    if (!r) return null;
+    const x = Math.max(0, Math.round(r.left));
+    const y = Math.max(0, Math.round(r.top));
+    const w = Math.min(innerWidth, Math.round(r.right)) - x;
+    const h = Math.min(innerHeight, Math.round(r.bottom)) - y;
+    return w >= 20 && h >= 20 ? { x, y, w, h } : null;
+  }
+
+  // Elemento mais interno no ponto (x, y) da tela, entrando em quadros do
+  // mesmo site e em shadow DOM aberto. "ignorar" é a camada do seletor.
+  function elementoNoPonto(x, y, ignorar) {
+    const valido = (e) => !ignorar || !ehAncestral(ignorar, e);
+    let doc = document;
+    let dx = 0;
+    let dy = 0;
+    let achado = null;
+    for (let nivel = 0; nivel < 5; nivel++) {
+      let el = doc.elementsFromPoint(x - dx, y - dy).find(valido);
+      while (el?.shadowRoot) {
+        const dentro = el.shadowRoot.elementsFromPoint(x - dx, y - dy).find((e) => e !== el && valido(e));
+        if (!dentro) break;
+        el = dentro;
+      }
+      if (!el) break;
+      achado = el;
+      if (el.tagName !== 'IFRAME' && el.tagName !== 'FRAME') break;
+      let interno = null;
+      try {
+        interno = el.contentDocument;
+      } catch {
+        // quadro de outro domínio: fica no próprio quadro
+      }
+      if (!interno?.documentElement) break;
+      const r = el.getBoundingClientRect();
+      dx += r.left + el.clientLeft;
+      dy += r.top + el.clientTop;
+      doc = interno;
+    }
+    return achado;
+  }
+
+  // Sobe um nível, saindo do shadow DOM pelo elemento hospedeiro.
+  function subir(n) {
+    if (n.parentElement) return n.parentElement;
+    const raiz = n.getRootNode?.();
+    return raiz && raiz !== n && raiz.host ? raiz.host : null;
+  }
+
+  function elementoRola(n) {
+    if (n.scrollHeight - n.clientHeight <= 20) return false;
+    const oy = n.ownerDocument.defaultView.getComputedStyle(n).overflowY;
+    return oy === 'auto' || oy === 'scroll' || oy === 'overlay';
+  }
+
+  // A área que rola a partir de um elemento: o ancestral mais próximo com
+  // rolagem própria; senão o documento (do quadro ou da página).
+  function rolagemDe(el) {
+    for (let n = el; n; n = subir(n)) {
+      const doc = n.ownerDocument;
+      if (n === doc.documentElement || n === doc.body) break;
+      if (elementoRola(n)) return rolagemElemento(n);
+    }
+    const doc = el.ownerDocument;
+    const win = doc.defaultView;
+    if (janelaRola(win)) return rolagemJanela(win);
+    if (doc.body && elementoRola(doc.body)) return rolagemElemento(doc.body); // html com overflow:hidden
+    if (win !== window && win.frameElement) return rolagemDe(win.frameElement);
+    return null;
+  }
+
+  function caminhoDeQuadros(win) {
+    const caminho = [];
+    for (let w = win; w && w !== window && w.frameElement; w = w.parent) {
+      caminho.unshift([...w.parent.document.querySelectorAll('iframe, frame')].indexOf(w.frameElement));
+    }
+    return caminho;
+  }
+
+  function janelaDoCaminho(caminho) {
+    let win = window;
+    for (const i of caminho) {
+      try {
+        const quadro = win.document.querySelectorAll('iframe, frame')[i];
+        if (!quadro?.contentDocument) return null;
+        win = quadro.contentWindow;
+      } catch {
+        return null;
+      }
+    }
+    return win;
+  }
+
+  // Seletor CSS para achar o mesmo elemento numa próxima visita ao site.
+  function seletorCss(el) {
+    if (el.getRootNode() !== el.ownerDocument) return null; // dentro de shadow DOM
+    const partes = [];
+    for (let n = el; n && n !== n.ownerDocument.documentElement; n = n.parentElement) {
+      if (n.id && n.ownerDocument.querySelectorAll(`#${CSS.escape(n.id)}`).length === 1) {
+        partes.unshift(`#${CSS.escape(n.id)}`);
+        return partes.join(' > ');
+      }
+      const tag = n.tagName.toLowerCase();
+      const irmaos = [...(n.parentElement?.children || [])].filter((c) => c.tagName === n.tagName);
+      partes.unshift(irmaos.length > 1 ? `${tag}:nth-of-type(${irmaos.indexOf(n) + 1})` : tag);
+    }
+    return `html > ${partes.join(' > ')}`;
+  }
+
+  // Resumo de uma área para o seletor mostrar na tela.
+  function descrever(sc) {
+    const r = regiaoNaTela(sc);
+    const conteudo = Math.round(sc.maximo() + (sc.regiao().bottom - sc.regiao().top));
+    return {
+      area: sc,
+      pagina: sc.tipo === 'janela',
+      retangulo: { x: r.left, y: r.top, w: r.right - r.left, h: r.bottom - r.top },
+      conteudo,
+      rola: sc.maximo() > 0,
+    };
+  }
+
+  // A janela rola? Sem mexer na rolagem (o seletor chama isto a cada
+  // movimento do mouse): olha o tamanho e o overflow que vale para a página.
+  function janelaRola(win) {
+    const doc = win.document;
+    const raiz = doc.scrollingElement || doc.documentElement;
+    if (!raiz || raiz.scrollHeight - raiz.clientHeight < 1) return false;
+    const overflow = (el) => (el ? win.getComputedStyle(el).overflowY : 'visible');
+    const html = overflow(doc.documentElement);
+    const daPagina = html !== 'visible' ? html : overflow(doc.body);
+    return daPagina !== 'hidden' && daPagina !== 'clip';
+  }
+
   // Decide o que rolar: a página em si ou, em sites que rolam um painel
   // interno (ou um quadro/iframe do mesmo site), o maior desses painéis.
   function acharRolagem() {
@@ -142,13 +327,14 @@
   // base da área visível. "presa" = está realmente parada na borda (fixed,
   // ou sticky já grudado), ou seja, não é conteúdo no fluxo normal do texto.
   function faixas(sc) {
-    const reg = sc.regiao();
+    const reg = regiaoUtil(sc);
     const h = reg.bottom - reg.top;
     const lista = [];
     if (h <= 0) return { reg, h, lista };
     for (const el of elementos(sc.doc)) {
       const cs = sc.win.getComputedStyle(el);
       if (cs.position !== 'fixed' && cs.position !== 'sticky') continue;
+      if (el.id === 'clipping-seletor') continue;
       if (cs.display === 'none' || cs.visibility !== 'visible' || parseFloat(cs.opacity) === 0) continue;
       if (sc.el && ehAncestral(el, sc.el)) continue;
       const r = el.getBoundingClientRect();
@@ -212,16 +398,69 @@
   }
 
   const api = {
-    iniciar() {
+    // config (opcional): { usarEscolhida, recorte: { modo: 'tela'|'area'|'regiao', retangulo } }
+    iniciar(config) {
       if (estado) api.finalizar();
-      const sc = acharRolagem();
-      estado = { sc, topoOriginal: sc.topo(), estilos: new Map() };
+      const sc = (config?.usarEscolhida && escolhida) || acharRolagem();
+      escolhida = null;
+      estado = { sc, topoOriginal: sc.topo(), estilos: new Map(), recorte: null };
       for (const el of sc.alvosEstilo) {
         definirEstilo(el, 'scroll-behavior', 'auto');
         definirEstilo(el, 'scroll-snap-type', 'none');
       }
-      const reg = sc.regiao();
-      return { tipo: sc.tipo, max: sc.maximo(), altura: Math.round(reg.bottom - reg.top) };
+      estado.recorte = definirRecorte(config?.recorte, sc);
+      const reg = regiaoUtil(sc);
+      return {
+        tipo: sc.tipo,
+        max: sc.maximo(),
+        altura: Math.round(reg.bottom - reg.top),
+        recorte: estado.recorte,
+        janela: { largura: innerWidth, altura: innerHeight },
+      };
+    },
+
+    // --- usado pelo seletor da página (seletor.js) ---
+
+    // Área que rola sob o ponto (x, y) da tela; onde nada rola, a página.
+    areaNoPonto(x, y, ignorar) {
+      const el = elementoNoPonto(x, y, ignorar);
+      return descrever((el && rolagemDe(el)) || rolagemJanela(window));
+    },
+
+    // Área que a extensão escolheria sozinha.
+    areaAutomatica() {
+      return descrever(acharRolagem());
+    },
+
+    // Guarda a área para a captura que vai começar (null volta ao automático).
+    escolherArea(descricao) {
+      escolhida = descricao?.area || null;
+    },
+
+    // Forma de reencontrar a área numa próxima captura neste site.
+    lembranca(descricao) {
+      const sc = descricao.area;
+      if (sc.tipo === 'janela') return { tipo: 'janela' };
+      const quadros = caminhoDeQuadros(sc.win);
+      if (sc.tipo === 'quadro') return { tipo: 'quadro', quadros };
+      const seletor = seletorCss(sc.el);
+      return seletor ? { tipo: 'elemento', quadros, seletor } : null;
+    },
+
+    // Reencontra a área lembrada (se ela ainda existe e rola).
+    areaLembrada(lembranca) {
+      if (!lembranca) return null;
+      if (lembranca.tipo === 'janela') return descrever(rolagemJanela(window));
+      const win = janelaDoCaminho(lembranca.quadros || []);
+      if (!win) return null;
+      if (lembranca.tipo === 'quadro') return janelaRola(win) ? descrever(rolagemJanela(win)) : null;
+      let el = null;
+      try {
+        el = win.document.querySelector(lembranca.seletor);
+      } catch {
+        return null;
+      }
+      return el && elementoRola(el) ? descrever(rolagemElemento(el)) : null;
     },
 
     rolarPara(y) {
@@ -265,10 +504,12 @@
         altura: Math.round(h),
         ocupadoTopo: Math.ceil(topo),
         ocupadoBase: Math.ceil(base),
+        janela: { largura: innerWidth, altura: innerHeight },
       };
     },
 
     finalizar() {
+      escolhida = null;
       if (!estado) return;
       restaurarEstilos();
       estado.sc.rolar(estado.topoOriginal);

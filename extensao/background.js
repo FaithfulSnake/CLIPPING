@@ -2,6 +2,7 @@ import { capturarComRolagem, limparNome, normalizarOpcoes } from './comum.js';
 import { apagarAntigas, salvarPrint, salvarSessao } from './db.js';
 import { lerOpcoes } from './opcoes.js';
 import { lerPacotes, referencia } from './pacotes.js';
+import { motivoParaOcr } from './transcricao.js';
 
 // Captura em andamento (só uma por vez).
 let tarefa = null;
@@ -11,8 +12,8 @@ const esperar = (ms) => new Promise((pronto) => setTimeout(pronto, ms));
 
 function status() {
   if (!tarefa) return { ativo: false, estado: 'parado' };
-  const { ativo, estado, total, porcento, mensagem, tabId } = tarefa;
-  return { ativo, estado, total, porcento, mensagem, tabId };
+  const { ativo, estado, total, porcento, mensagem, tabId, ocr } = tarefa;
+  return { ativo, estado, total, porcento, mensagem, tabId, ocr, resultado: tarefa.opcoes?.resultado };
 }
 
 function avisarPopup() {
@@ -120,6 +121,45 @@ async function dimensoes(blob) {
   return d;
 }
 
+// Lê a matéria direto da página (leitor.js): o texto como o site publica.
+async function lerMateria(tabId, selecao) {
+  await chrome.scripting.executeScript({ target: { tabId }, files: ['terceiros/readability/Readability.js', 'leitor.js'] });
+  const config = {
+    area: Boolean(selecao?.rolagemEscolhida),
+    faixaX: selecao?.recorte ? { x: selecao.recorte.x, w: selecao.recorte.w } : null,
+  };
+  const [resposta] = await chrome.scripting.executeScript({
+    target: { tabId },
+    func: (c) => globalThis.__clippingLeitor.extrair(c),
+    args: [config],
+  });
+  return resposta?.result ?? { ok: false, erro: 'a página não respondeu' };
+}
+
+// Leva a transcrição para a página de notícias (que monta a matéria e grava a
+// lista): avisa a que já está aberta ou abre uma ao lado da matéria.
+async function entregarTranscricao(sessaoId, aba) {
+  const url = chrome.runtime.getURL('noticias.html');
+  let aberta = null;
+  try {
+    aberta = (await chrome.runtime.getContexts({ contextTypes: ['TAB'] })).find((c) => c.documentUrl?.startsWith(url) && c.tabId >= 0);
+  } catch {
+    // sem como procurar: abre outra
+  }
+  if (aberta) {
+    chrome.runtime.sendMessage({ tipo: 'transcrever', sessao: sessaoId }).catch(() => {});
+    const alvo = await chrome.tabs.update(aberta.tabId, { active: true });
+    await chrome.windows.update(alvo.windowId, { focused: true }).catch(() => {});
+    return;
+  }
+  await chrome.tabs.create({
+    url: `${url}?transcrever=${encodeURIComponent(sessaoId)}`,
+    windowId: aba.windowId,
+    index: aba.index + 1,
+    openerTabId: aba.id,
+  });
+}
+
 // selecao: o que foi escolhido na página pelo seletor ({ rolagemEscolhida, recorte }).
 async function iniciar(tabId, pasta, opcoesRecebidas, pacoteId = null, selecao = null) {
   if (tarefa?.ativo) return { erro: 'Já existe uma captura em andamento.' };
@@ -155,13 +195,21 @@ async function iniciar(tabId, pasta, opcoesRecebidas, pacoteId = null, selecao =
     parar: false,
     opcoes,
     pacote: referencia(pacote),
+    selecao,
     configPagina: { usarEscolhida: Boolean(selecao?.rolagemEscolhida), recorte: { modo: recorte, retangulo: selecao?.recorte || null } },
   };
   executar(tarefa, aba, limparNome(pasta || aba.title));
   return { ok: true };
 }
 
+const limparSeloDepois = () =>
+  setTimeout(() => {
+    if (!tarefa?.ativo) selo('');
+  }, 10000);
+
 async function executar(t, aba, pasta) {
+  const querTexto = t.opcoes.resultado !== 'zip';
+  const querZip = t.opcoes.resultado !== 'email';
   const sessao = {
     id: t.sessaoId,
     pasta,
@@ -173,7 +221,8 @@ async function executar(t, aba, pasta) {
     sobreposicao: t.opcoes.sobreposicao,
     incluirInfo: t.opcoes.incluirInfo,
     baixarAuto: t.opcoes.baixarAuto,
-    pacote: t.pacote,
+    pacote: querZip ? t.pacote : null,
+    zip: querZip,
     motivo: 'capturando',
     medidas: [],
   };
@@ -181,6 +230,65 @@ async function executar(t, aba, pasta) {
   avisarPopup();
   try {
     await apagarAntigas(5);
+  } catch {
+    // sem limpeza desta vez
+  }
+
+  // Texto da matéria: direto da página; os prints só entram se ela não tiver o texto.
+  let motivoOcr = '';
+  if (querTexto) {
+    t.estado = 'lendo';
+    selo('…', '#2563eb');
+    avisarPopup();
+    let leitura;
+    try {
+      leitura = await lerMateria(t.tabId, t.selecao);
+    } catch (e) {
+      leitura = { ok: false, erro: descreverErro(e) };
+    }
+    motivoOcr = t.opcoes.leitura === 'ocr' ? 'leitura por OCR escolhida nas configurações' : motivoParaOcr(leitura);
+    Object.assign(sessao, { tipo: 'transcricao', transcricao: 'pendente', leitura, precisaOcr: Boolean(motivoOcr), motivoOcr });
+    t.ocr = Boolean(motivoOcr);
+    if (!motivoOcr && !querZip) {
+      try {
+        sessao.motivo = 'fim';
+        await salvarSessao(sessao);
+        t.ativo = false;
+        t.estado = 'concluido';
+        selo('OK', '#16a34a');
+        avisarPopup();
+        await entregarTranscricao(sessao.id, aba);
+      } catch (e) {
+        t.ativo = false;
+        t.estado = 'erro';
+        t.mensagem = descreverErro(e);
+        selo('ERR', '#dc2626');
+        avisarPopup();
+      }
+      limparSeloDepois();
+      return;
+    }
+  }
+
+  // Prints só para o OCR: recortados na coluna da matéria e só pelo trecho dela,
+  // com mais sobreposição (cada linha precisa aparecer inteira em algum print).
+  let opcoesCaptura = t.opcoes;
+  let configPagina = t.configPagina;
+  let faixa = null;
+  if (motivoOcr && !querZip) {
+    opcoesCaptura = { ...t.opcoes, sobreposicao: Math.max(t.opcoes.sobreposicao, 15), esconderFixos: true };
+    const c = sessao.leitura?.caixa;
+    const j = sessao.leitura?.janela;
+    if (c && j && configPagina.recorte.modo === 'tela') {
+      const x = Math.max(0, c.x - 12);
+      const w = Math.min(j.largura, c.x + c.w + 12) - x;
+      if (w >= 200) configPagina = { ...configPagina, recorte: { modo: 'regiao', retangulo: { x, y: 0, w, h: j.altura } } };
+      faixa = (inicio) => (inicio.tipo === 'janela' ? { de: c.y > j.altura * 1.5 ? c.y - j.altura * 0.5 : 0, ate: c.y + c.h + 40 } : null);
+    }
+  }
+  t.estado = 'capturando';
+  avisarPopup();
+  try {
     await salvarSessao(sessao);
   } catch (e) {
     t.ativo = false;
@@ -192,14 +300,16 @@ async function executar(t, aba, pasta) {
   }
 
   const resultado = await capturarComRolagem({
-    opcoes: t.opcoes,
+    opcoes: opcoesCaptura,
     pagina: (metodo, arg) => chamarPagina(t.tabId, metodo, arg),
-    configPagina: t.configPagina,
+    configPagina,
+    faixa,
     antesDoPrint: () => aguardarAbaVisivel(t),
     tirarPrint: async (medidas, inicio) => {
       const dataUrl = await capturarTela(t.windowId, t.opcoes.formato);
       const blob = await (await fetch(dataUrl)).blob();
       sessao.recorte ??= inicio?.recorte || null;
+      sessao.tipoRolagem ??= inicio?.tipo || null;
       return inicio?.recorte ? recortar(blob, inicio.recorte, medidas.janela || inicio.janela, t.opcoes.formato) : blob;
     },
     aoCapturar: async (blob, n, porcento, medidas) => {
@@ -235,21 +345,23 @@ async function executar(t, aba, pasta) {
     t.mensagem = sessao.mensagemErro;
     selo('OK', '#16a34a');
     avisarPopup();
-    await chrome.tabs.create({
-      url: `resultado.html?sessao=${encodeURIComponent(t.sessaoId)}`,
-      windowId: aba.windowId,
-      index: aba.index + 1,
-      openerTabId: aba.id,
-    });
+    if (querZip) {
+      await chrome.tabs.create({
+        url: `resultado.html?sessao=${encodeURIComponent(t.sessaoId)}`,
+        windowId: aba.windowId,
+        index: aba.index + 1,
+        openerTabId: aba.id,
+        active: !querTexto,
+      });
+    }
+    if (querTexto) await entregarTranscricao(sessao.id, aba);
   } catch (e) {
     t.estado = 'erro';
     t.mensagem = descreverErro(e);
     selo('ERR', '#dc2626');
     avisarPopup();
   }
-  setTimeout(() => {
-    if (!tarefa?.ativo) selo('');
-  }, 10000);
+  limparSeloDepois();
 }
 
 chrome.runtime.onMessage.addListener((msg, remetente, responder) => {

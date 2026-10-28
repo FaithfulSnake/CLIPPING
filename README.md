@@ -4,10 +4,48 @@ Extensão do navegador (Chrome/Edge) que reúne ferramentas do escritório. Não
 
 | Ferramenta | O que faz |
 | --- | --- |
-| **Prints com rolagem** | Rola a página do topo até o fim, tira um print de cada trecho e baixa um **ZIP** com os prints **numerados na ordem da página**, para transcrição. |
-| **Notícias jurídicas** | Você copia e cola o **texto integral** das matérias e recebe **um e-mail por área** (Tributário, Empresarial e Trabalhista) no modelo do escritório, **sem resumir**, pronto para colar no Outlook. |
+| **Transcrição para o e-mail** | Na página da matéria, clique em **Iniciar captura**: o **texto integral** vai direto para o e-mail de notícias da área, **exatamente como o site publica** (porcentagens, valores, datas e acentos sem erro de leitura), sem menus, anúncios nem “Leia também”. Se a página só mostra o texto como imagem, a extensão lê os prints com **OCR** e marca em amarelo o que precisa ser conferido. |
+| **Prints com rolagem** | Rola a página do topo até o fim, tira um print de cada trecho e baixa um **ZIP** com os prints **numerados na ordem da página** (em Configurações → Resultado da captura → ZIP com os prints). |
+| **Notícias jurídicas** | Monta **um e-mail por área** (Tributário, Empresarial e Trabalhista) no modelo do escritório, com o **texto integral** das matérias, **sem resumir**, pronto para colar no Outlook. Recebe as matérias transcritas e também texto colado ou arquivos .txt. |
 
-As duas ficam no mesmo ícone: clique nele e escolha a aba da ferramenta.
+Tudo fica no mesmo ícone: clique nele e escolha a aba (**Captura** ou **Notícias jurídicas**).
+
+---
+
+# Transcrição das matérias
+
+### Usar
+
+1. Abra a matéria no site (faça login antes, se o site pedir).
+2. Clique no ícone da extensão, aba **Captura**, e em **Iniciar captura** (ou <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd>).
+3. Em um ou dois segundos abre a página **Notícias jurídicas** com a matéria já no e-mail da área (Tributário, Empresarial ou Trabalhista), com título, autor, data e link. Confira e use **Copiar e-mail para o Outlook**.
+4. Próxima matéria: abra e repita. Cada uma entra separada, com o título e o texto integral dela, no e-mail da área; a ordem pode ser trocada na lista.
+
+### Por que não tem erro de leitura
+
+A extensão não “lê” a imagem da tela: ela pega o texto que o próprio site manda para o navegador, letra por letra. **20,5%**, **R$ 1.234.567,89**, **§ 2º**, **2ª Turma**, **31/12/2025** e **nº 0801234-56.2025.8.10.0001** chegam exatamente assim, sem trocar vírgula por ponto nem “ª” por “º”. Nada é resumido, reescrito nem completado.
+
+Para achar o corpo da matéria e deixar de fora **menus, anúncios, banners, barras laterais, “Leia também”, botões de compartilhar, newsletter, comentários e rodapé**, ela usa o Readability (o mesmo do “Modo de leitura” do Firefox) e filtros próprios para os portais brasileiros. Ficam **intertítulos** (em negrito no e-mail), **listas**, **citações** e **legendas** de foto (em itálico); créditos soltos como “Divulgação” saem. A linha fina (o texto logo abaixo do título) entra como primeiro parágrafo, e a linha “Por Fulano | data” vira o autor e a data da matéria.
+
+### Quando entra o OCR
+
+Só quando a página **não tem o texto** da matéria: ele está numa imagem, ou o site embaralha as letras de propósito para não deixar copiar. Aí a extensão tira os prints só da coluna da matéria e lê com o **Tesseract** (embutido na extensão: nada sai do computador). Os prints são juntados pela posição exata de cada um na página, então a parte repetida entre um print e o seguinte não sai duplicada.
+
+Toda palavra em que o OCR não tem certeza, e todo número, porcentagem, valor, “º”, “ª” e “§” que não foi lido com confiança alta, fica **marcado entre ⟦ ⟧ no texto e em amarelo no e-mail**, para você conferir (o link **Ver os prints** abre as imagens) em vez de a extensão adivinhar. Depois de conferir, apague os ⟦ ⟧. Ao copiar um e-mail com trechos ainda marcados, a extensão avisa.
+
+### Configurações da transcrição
+
+Em **Configurações**, no popup (gravadas só ao clicar em **Salvar**):
+
+- **Resultado da captura:** *Texto da matéria no e-mail de notícias* (padrão), *ZIP com os prints* (o funcionamento de antes) ou *Os dois*.
+- **Leitura do texto:** *Texto da página, com OCR só quando faltar* (padrão) ou *Sempre OCR dos prints* (para um site que mostre o texto errado na página).
+
+### Limites da transcrição
+
+- Entra o que o site mostra para você: em matéria com paywall, faça login antes.
+- PDF aberto no leitor do navegador e conteúdo em quadro (iframe) de outro site não são lidos direto.
+- Se a extensão pegar a parte errada da página, use **Área do print → Marcar uma região** sobre a coluna da matéria (só o que estiver nela entra). Se a matéria rola numa parte própria da tela (coluna lateral, painel), use **Área de rolagem → Escolher na página** e clique nela.
+- O OCR leva alguns segundos por print e sempre pede a conferência dos trechos em amarelo.
 
 ---
 
@@ -63,7 +101,7 @@ O nome da pasta vem preenchido com o título da página e pode ser trocado antes
 ### Usar
 
 1. Abra a página que vai transcrever (faça login antes, se precisar).
-2. Clique no ícone da extensão, na aba **Prints com rolagem**, confira o **nome da pasta** e escolha o **pacote** (veja abaixo).
+2. Em **Configurações → Resultado da captura**, escolha **ZIP com os prints** (ou **Os dois**) e clique em **Salvar**. Depois, no ícone da extensão, aba **Captura**, confira o **nome da pasta** e escolha o **pacote** (veja abaixo).
 3. Clique em **Iniciar captura**. Não troque de aba nem minimize a janela até terminar. Se trocar, a captura pausa e continua quando você voltar.
 4. Ao terminar, abre uma aba com a prévia de todos os prints e o ZIP é salvo sozinho (o botão **Baixar ZIP**, ou **Salvar no pacote**, salva de novo).
 
@@ -115,6 +153,8 @@ As mudanças valem para a próxima captura assim que você mexe, mas só ficam *
 
 | Opção                                  | Padrão      | Para que serve                                                       |
 | -------------------------------------- | ----------- | -------------------------------------------------------------------- |
+| Resultado da captura                   | Texto no e-mail | **ZIP com os prints** para receber o ZIP, ou **Os dois**         |
+| Leitura do texto                       | Texto da página | **Sempre OCR dos prints** só para sites que mostram o texto errado |
 | Área de rolagem                        | Automática  | **Escolher na página** para colunas laterais ou painéis fora do centro |
 | Área do print                          | Tela inteira | Recortar os prints na área que rola ou numa região marcada           |
 | Sobreposição entre prints              | 10%         | Quanto do final de um print se repete no próximo                     |
@@ -208,7 +248,7 @@ Os avisos da lista ajudam a conferir antes de enviar: **sem link**, **confira a 
 
 ### Permissões da extensão
 
-Além do necessário para os prints, a extensão pede para **gerenciar downloads** (salvar os ZIPs na pasta do pacote e mostrá-los na pasta), **ler a área de transferência** (botão "Colar" das notícias) e **ver os títulos e endereços das abas abertas** (para achar o link da matéria sozinha). A pasta escolhida para os pacotes só é acessada depois que você a escolhe e o Chrome confirma o acesso. Nada sai do seu computador.
+Além do necessário para os prints, a extensão pede para **gerenciar downloads** (salvar os ZIPs na pasta do pacote e mostrá-los na pasta), **ler a área de transferência** (botão "Colar" das notícias) e **ver os títulos e endereços das abas abertas** (para achar o link da matéria sozinha). A pasta escolhida para os pacotes só é acessada depois que você a escolhe e o Chrome confirma o acesso. O OCR roda dentro da extensão (por isso ela pede para rodar WebAssembly). Nada sai do seu computador.
 
 ## Para quem for mexer no código
 
@@ -217,6 +257,10 @@ extensao/            a extensão (Manifest V3)
   manifest.json
   background.js      controla a captura (service worker)
   pagina.js          roda dentro da página: escolhe o que rolar, mede cabeçalhos/rodapés fixos e o recorte
+  leitor.js          roda dentro da página: acha o corpo da matéria e devolve o texto exato em blocos
+  transcricao.js     monta a matéria do e-mail a partir da leitura da página ou do OCR (funções puras)
+  transcrever.js, ocr.js   na página de notícias: recebe as capturas e lê os prints com o Tesseract
+  terceiros/         Readability (Mozilla) e Tesseract.js com o modelo de português, com as licenças
   seletor.js         escolha na página antes da captura (parte que rola e região do print)
   comum.js           laço de captura, nomes de arquivo e info.txt (compartilhado com o favorito)
   zip.js             gera o ZIP (sem bibliotecas externas)
@@ -244,7 +288,7 @@ Comandos (precisam do Node.js 20+; os de ponta a ponta precisam do Playwright co
 
 ```sh
 npm test            # testes unitários
-npm run e2e         # abre o Chromium com a extensão: captura testes/paginas (seletor, recorte, pacotes) e monta os e-mails de testes/noticias
+npm run e2e         # abre o Chromium com a extensão: transcrição e OCR, capturas (seletor, recorte, pacotes) e os e-mails de notícias
 SO=pacotes npm run e2e   # só os blocos com esses nomes (separados por vírgula)
 npm run gerar       # regenera os arquivos gerados depois de mudar extensao/ ou script/fonte/
 npm run empacotar   # gera dist/ferramentas-fanjas.zip para distribuir a extensão

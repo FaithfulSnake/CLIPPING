@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <title>Sefaz-MA publica nova tabela do ICMS - Portal de Teste</title>
+    <style>
+      body { margin: 0; font: 16px/1.5 sans-serif; color: #222; }
+      .topo { background: #1e3a5f; color: #fff; padding: 14px 24px; }
+      .grade { display: grid; grid-template-columns: 760px 260px; gap: 40px; justify-content: center; padding: 24px; }
+      .lateral { background: #f1f1f1; padding: 16px; font-size: 14px; }
+      canvas { display: block; }
+    </style>
+  </head>
+  <body>
+    <div class="topo">Portal de Teste · Notícias · Legislação · Contato</div>
+    <div class="grade">
+      <article id="materia">
+        <h1>Sefaz-MA publica nova tabela do ICMS</h1>
+        <p>Por Ana Lima</p>
+        <canvas id="corpo" width="760" height="1500" aria-label="Texto da matéria"></canvas>
+      </article>
+      <aside class="lateral"><p>Publicidade</p><p>Assine a nossa newsletter e receba as notícias do dia.</p></aside>
+    </div>
+    <script>
+      // O corpo da matéria só existe como imagem (como em sites que não deixam copiar o texto).
+      const PARAGRAFOS = [
+        'A Secretaria de Fazenda do Maranhão publicou nesta terça-feira a nova tabela do ICMS. A alíquota geral subiu de 18% para 20,5% a partir de 1º de janeiro de 2027.',
+        'Segundo o órgão, a arrecadação deve crescer R$ 1.234.567,89 por mês. O contribuinte que pagar até 31/12/2026 terá desconto de 15% sobre os juros.',
+        'A medida foi questionada no processo nº 0801234-56.2025.8.10.0001, distribuído à 2ª Vara da Fazenda Pública de São Luís.',
+        'Para o advogado tributarista ouvido pela reportagem, a lei respeita o art. 150, inciso III, da Constituição, mas a cobrança antes de 90 dias seria inconstitucional.',
+        'A taxa Selic usada na correção caiu 0,25 ponto percentual no último mês, o que reduz o custo do parcelamento em até 12 vezes.',
+        'O decreto também revoga benefícios fiscais de 47 empresas do setor atacadista e cria um regime especial para medicamentos, com carga efetiva de 12%.',
+        'Os pedidos de restituição devem ser feitos pelo portal da Sefaz até o dia 28 de fevereiro de 2027, com a guia de recolhimento e o comprovante de pagamento.',
+        'A Associação Comercial do Maranhão informou que vai recorrer ao Tribunal de Justiça e pedir a suspensão imediata da nova tabela até o julgamento do mérito.',
+      ];
+      const tela = document.getElementById('corpo');
+      const g = tela.getContext('2d');
+      g.fillStyle = '#ffffff';
+      g.fillRect(0, 0, tela.width, tela.height);
+      g.fillStyle = '#1f2937';
+      g.font = '19px sans-serif';
+      g.textBaseline = 'top';
+      let y = 10;
+      for (const p of PARAGRAFOS) {
+        let linha = '';
+        for (const palavra of p.split(' ')) {
+          const teste = linha ? `${linha} ${palavra}` : palavra;
+          if (g.measureText(teste).width > 720) {
+            g.fillText(linha, 10, y);
+            y += 30;
+            linha = palavra;
+          } else linha = teste;
+        }
+        g.fillText(linha, 10, y);
+        y += 54;
+      }
+      tela.height = y + 10;
+      // redesenha na altura certa
+      g.fillStyle = '#ffffff';
+      g.fillRect(0, 0, tela.width, tela.height);
+      g.fillStyle = '#1f2937';
+      g.font = '19px sans-serif';
+      g.textBaseline = 'top';
+      y = 10;
+      for (const p of PARAGRAFOS) {
+        let linha = '';
+        for (const palavra of p.split(' ')) {
+          const teste = linha ? `${linha} ${palavra}` : palavra;
+          if (g.measureText(teste).width > 720) {
+            g.fillText(linha, 10, y);
+            y += 30;
+            linha = palavra;
+          } else linha = teste;
+        }
+        g.fillText(linha, 10, y);
+        y += 54;
+      }
+      globalThis.PARAGRAFOS = PARAGRAFOS;
+    </script>
+  </body>
+</html>

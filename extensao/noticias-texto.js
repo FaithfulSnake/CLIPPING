@@ -54,7 +54,7 @@ export function formatarData(data, separador = '.') {
 }
 
 // Linha que é só uma data ("25 de agosto de 2026, 8h05", "Publicado em 25/08/2026 às 10:00").
-function linhaSoDeData(linha) {
+export function linhaSoDeData(linha) {
   if (!acharData(linha)) return false;
   const resto = normalizar(linha)
     .replace(RE_DATA, ' ')
@@ -196,6 +196,9 @@ const LIXO = new Set(
 );
 const LIXO_INICIO = /^(revista consultor juridico, \d|topo da pagina$|voltar ao topo$)/;
 
+// Linha solta que é do site, não da matéria ("Compartilhar", "Spacca"…).
+export const linhaDeLixo = (linha) => LIXO.has(normalizar(linha)) || LIXO_INICIO.test(normalizar(linha));
+
 const FONTES = [
   [/(^|\.)jota\.info$/, 'JOTA'],
   [/(^|\.)migalhas\.com\.br$/, 'Migalhas'],
@@ -231,7 +234,7 @@ function pareceChapeu(linha) {
   return palavras <= 2 || (palavras <= 4 && /\p{L}/u.test(linha) && linha === linha.toLocaleUpperCase('pt-BR'));
 }
 
-function limparTitulo(titulo) {
+export function limparTitulo(titulo) {
   return titulo
     .replace(/\s+[-|–—]\s+(conjur|consultor juridico|jota|migalhas|valor economico)\s*$/i, '')
     .replace(/\s+/g, ' ')
@@ -239,7 +242,7 @@ function limparTitulo(titulo) {
 }
 
 // "Por Fulano de Tal" / "Por: Fulano, 25/08/2026" → { autor, data }.
-function autorDaLinha(linha) {
+export function autorDaLinha(linha) {
   const m = linha.match(/^por:?\s+(.+)$/i);
   if (!m) return null;
   const [autor, ...resto] = m[1].split(/\s+[|–—]\s+|\s+-\s+|,\s*(?=\d)/);
@@ -400,6 +403,34 @@ const esc = (s) =>
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
 
+// Marcas no texto integral (vêm da transcrição; dá para escrever à mão também):
+//   **Intertítulo**     parágrafo inteiro em negrito
+//   _Legenda da foto_   parágrafo inteiro em itálico
+//   ⟦trecho⟧            o OCR teve dúvida: aparece em amarelo até alguém conferir
+const INTERTITULO = /^\*\*(.+)\*\*$/s;
+const LEGENDA = /^_(.+)_$/s;
+const CONFERIR = /⟦([^⟦⟧]*)⟧/g;
+
+export const contarConferir = (texto) => (String(texto ?? '').match(CONFERIR) || []).length;
+
+// Tira as marcas (para o texto simples).
+export const semMarcas = (linha) => {
+  const l = String(linha).replace(CONFERIR, '$1');
+  return l.match(INTERTITULO)?.[1] ?? l.match(LEGENDA)?.[1] ?? l;
+};
+
+const conferirHtml = (linha) => esc(linha).replace(/⟦([^⟦⟧]*)⟧/g, '<span style="background-color:#ffff00; mso-highlight:yellow;">$1</span>');
+
+function paragrafoHtml(linhas) {
+  if (linhas.length === 1 && INTERTITULO.test(linhas[0])) {
+    return `<p style="font-family:Calibri,sans-serif; font-weight:bold; margin:12pt 0 6pt 0;">${conferirHtml(linhas[0].match(INTERTITULO)[1])}</p>`;
+  }
+  if (linhas.length === 1 && LEGENDA.test(linhas[0])) {
+    return `<p style="text-align:justify; font-style:italic; margin:0 0 8pt 0;">${conferirHtml(linhas[0].match(LEGENDA)[1])}</p>`;
+  }
+  return `<p style="text-align:justify; margin:0 0 8pt 0;">${linhas.map(conferirHtml).join('<br>')}</p>`;
+}
+
 // HTML do e-mail de uma área, no modelo do escritório (estilos inline, que o
 // Outlook mantém). Cada parágrafo vira um <p> próprio: o Outlook ignora
 // "white-space:pre-line" e juntaria o texto todo num bloco só.
@@ -422,7 +453,7 @@ export function montarEmail({ area, data, materias }) {
       `<p style="font-family:Calibri,sans-serif; font-weight:bold; text-align:center; margin:18pt 0 ${m.autor ? 4 : 12}pt 0;"><a name="materia-${n}"></a>${esc(m.titulo)}</p>`,
     );
     if (m.autor) h.push(`<p style="text-align:center; margin:0 0 12pt 0;">Por: ${esc(m.autor)}</p>`);
-    for (const p of paragrafos(m.texto)) h.push(`<p style="text-align:justify; margin:0 0 8pt 0;">${p.map(esc).join('<br>')}</p>`);
+    for (const p of paragrafos(m.texto)) h.push(paragrafoHtml(p));
     if (linkValido(m.link)) {
       h.push(`<p style="margin:12pt 0 18pt 0;"><strong>Link de Acesso:</strong> <a href="${esc(m.link)}">${esc(m.link)}</a></p>`);
     }
@@ -438,7 +469,7 @@ export function montarTexto({ area, data, materias }) {
   for (const m of materias) {
     partes.push('', '', m.titulo);
     if (m.autor) partes.push(`Por: ${m.autor}`);
-    partes.push('', ...paragrafos(m.texto).map((p) => `${p.join('\n')}\n`));
+    partes.push('', ...paragrafos(m.texto).map((p) => `${p.map(semMarcas).join('\n')}\n`));
     if (linkValido(m.link)) partes.push(`Link de Acesso: ${m.link}`);
   }
   return `${partes.join('\n').trim()}\n`;

@@ -35,7 +35,8 @@ async function transacao(lojas, modo, operacao) {
   });
   const req = operacao(tx);
   await concluida;
-  return req instanceof IDBRequest ? req.result : undefined;
+  if (req instanceof IDBRequest) return req.result;
+  return typeof req === 'function' ? req() : undefined;
 }
 
 const printsDa = (id) => IDBKeyRange.bound([id, 0], [id, Infinity]);
@@ -43,6 +44,8 @@ const printsDa = (id) => IDBKeyRange.bound([id, 0], [id, Infinity]);
 export const salvarSessao = (sessao) => transacao('sessoes', 'readwrite', (tx) => tx.objectStore('sessoes').put(sessao));
 
 export const lerSessao = (id) => transacao('sessoes', 'readonly', (tx) => tx.objectStore('sessoes').get(id));
+
+export const lerSessoes = () => transacao('sessoes', 'readonly', (tx) => tx.objectStore('sessoes').getAll());
 
 export const salvarPrint = (id, indice, blob) =>
   transacao('prints', 'readwrite', (tx) => tx.objectStore('prints').put(blob, [id, indice]));
@@ -63,11 +66,31 @@ export const atualizarSessao = (id, mudancas) =>
     req.onsuccess = () => req.result && loja.put({ ...req.result, ...mudancas });
   });
 
+// Pega a transcrição de uma captura para fazer (numa transação só: se a página
+// de notícias estiver aberta em duas abas, só uma faz). Uma que ficou "fazendo"
+// há mais de 5 minutos (aba fechada no meio) pode ser pega de novo.
+export const pegarTranscricao = (id) =>
+  transacao('sessoes', 'readwrite', (tx) => {
+    const loja = tx.objectStore('sessoes');
+    const req = loja.get(id);
+    let pegou = false;
+    req.onsuccess = () => {
+      const s = req.result;
+      const largada = s?.transcricao === 'fazendo' && Date.now() - (s.desde || 0) > 5 * 60_000;
+      if (s && (s.transcricao === 'pendente' || largada)) {
+        loja.put({ ...s, transcricao: 'fazendo', desde: Date.now() });
+        pegou = true;
+      }
+    };
+    return () => pegou;
+  });
+
 // Mantém só as capturas mais recentes, para não acumular espaço em disco.
-// As que estão em pacote ficam guardadas (servem para exportar o pacote).
+// As que estão em pacote ficam guardadas (servem para exportar o pacote), e
+// as que ainda esperam a transcrição também.
 export async function apagarAntigas(manter) {
   const sessoes = await transacao('sessoes', 'readonly', (tx) => tx.objectStore('sessoes').getAll());
-  const soltas = sessoes.filter((s) => !s.pacote).sort((a, b) => b.data - a.data);
+  const soltas = sessoes.filter((s) => !s.pacote && s.transcricao !== 'pendente' && s.transcricao !== 'fazendo').sort((a, b) => b.data - a.data);
   for (const s of soltas.slice(manter)) await apagarSessao(s.id);
 }
 

@@ -283,6 +283,21 @@ summary {
   color: var(--texto);
 }
 
+.modo-email {
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--campo);
+  border: 1px solid var(--borda);
+  font-size: 12px;
+}
+
+.modo-email[hidden],
+.campo[hidden],
+.pacote[hidden] {
+  display: none;
+}
+
 .dica.alerta {
   margin: 0;
   padding: 6px 8px;

@@ -186,7 +186,7 @@ async function main() {
       });
       const resposta = await controle.evaluate(
         ({ tabId, opcoes }) => chrome.runtime.sendMessage({ tipo: 'iniciar', tabId, pasta: 'Transcrição: teste/1', opcoes }),
-        { tabId, opcoes: { espera: 300, ...opcoes } },
+        { tabId, opcoes: { espera: 300, resultado: 'zip', ...opcoes } },
       );
       assert.deepEqual(resposta, { ok: true });
       const resultado = await esperaResultado;
@@ -321,6 +321,10 @@ async function main() {
       const gravadas = () => popup.evaluate(async () => (await chrome.storage.local.get('opcoes')).opcoes ?? null);
       assert.equal(await marcado('areaRolagem'), 'auto', 'rolagem automática por padrão');
       assert.equal(await marcado('recorte'), 'tela', 'tela inteira por padrão');
+      assert.equal(await marcado('resultado'), 'email', 'o padrão é o texto no e-mail de notícias');
+      assert.equal(await marcado('leitura'), 'auto');
+      assert.equal(await popup.isVisible('#modo-email'), true);
+      assert.equal(await popup.isHidden('#campo-pacote'), true, 'pacote é só do ZIP');
       assert.equal(await popup.isDisabled('#salvar'), true);
       await popup.click('#configuracoes summary');
       await popup.check('input[name="recorte"][value="area"]');
@@ -352,7 +356,7 @@ async function main() {
       assert.equal(await popup.isVisible('#nao-salvas'), true);
       assert.equal((await gravadas()).areaRolagem, 'escolher');
       await popup.click('#salvar');
-      assert.deepEqual([(await gravadas()).areaRolagem, (await gravadas()).espera, (await gravadas()).recorte], ['auto', 700, 'tela']);
+      assert.deepEqual([(await gravadas()).areaRolagem, (await gravadas()).espera, (await gravadas()).recorte, (await gravadas()).resultado], ['auto', 700, 'tela', 'email']);
       assert.deepEqual(erros, []);
       console.log('ok   configurações: novas opções desligadas por padrão e gravadas só com Salvar');
       await popup.close();
@@ -367,7 +371,7 @@ async function main() {
       limparDownloads();
       const alvo = await abrirAlvo('lateral.html');
       const resposta = await controle.evaluate(
-        (tabId) => chrome.runtime.sendMessage({ tipo: 'iniciar', tabId, pasta: 'Coluna lateral', opcoes: { espera: 300, areaRolagem: 'escolher', recorte: 'area' } }),
+        (tabId) => chrome.runtime.sendMessage({ tipo: 'iniciar', tabId, pasta: 'Coluna lateral', opcoes: { espera: 300, resultado: 'zip', areaRolagem: 'escolher', recorte: 'area' } }),
         alvo.tabId,
       );
       assert.deepEqual(resposta, { ok: true, escolhendo: true });
@@ -411,7 +415,7 @@ async function main() {
       limparDownloads();
       const alvo = await abrirAlvo('artigo.html');
       const resposta = await controle.evaluate(
-        (tabId) => chrome.runtime.sendMessage({ tipo: 'iniciar', tabId, pasta: 'Região marcada', opcoes: { espera: 300, recorte: 'regiao' } }),
+        (tabId) => chrome.runtime.sendMessage({ tipo: 'iniciar', tabId, pasta: 'Região marcada', opcoes: { espera: 300, resultado: 'zip', recorte: 'regiao' } }),
         alvo.tabId,
       );
       assert.deepEqual(resposta, { ok: true, escolhendo: true });
@@ -448,6 +452,8 @@ async function main() {
     // pacote é uma pasta com os ZIPs numerados e o "Índice do pacote.txt".
     if (rodar('pacotes')) try {
       limparDownloads();
+      // pacotes são do ZIP: configurações salvas com "Resultado: ZIP com os prints"
+      await controle.evaluate(() => chrome.storage.local.set({ opcoes: { resultado: 'zip' } }));
       const opcoesDoPopup = (popup) =>
         popup.$$eval('.opcao-pacote', (linhas) =>
           linhas.map((l) => ({ nome: l.querySelector('span').textContent, detalhe: l.querySelector('small')?.textContent || '', marcado: l.querySelector('input').checked })),
@@ -584,6 +590,7 @@ async function main() {
     // faz o papel da pasta escolhida na janela do sistema.
     if (rodar('pasta escolhida')) try {
       limparDownloads();
+      await controle.evaluate(() => chrome.storage.local.set({ opcoes: { resultado: 'zip' } }));
       const gerenciador = await contexto.newPage();
       gerenciador.on('pageerror', (e) => erros.push(e.message));
       await gerenciador.goto(`chrome-extension://${idExtensao}/pacotes.html`);
@@ -698,6 +705,151 @@ async function main() {
       console.log(`FALHA pasta escolhida\n${e.stack}`);
     }
 
+    // Transcrição: o texto integral vai direto para o e-mail de notícias, como o
+    // site publica (sem OCR), sem menus, anúncios, "Leia também" e comentários.
+    const paginaNoticias = async () => {
+      const aberta = contexto.pages().find((p) => p.url().includes('/noticias.html'));
+      if (aberta) return aberta;
+      const p = await contexto.waitForEvent('page', { predicate: (x) => x.url().includes('/noticias.html'), timeout: 120_000 });
+      p.on('pageerror', (e) => erros.push(e.message));
+      return p;
+    };
+    const materiasSalvas = (pagina) => pagina.evaluate(async () => (await chrome.storage.local.get('noticias')).noticias?.materias || []);
+    const esperarMaterias = async (pagina, n) => {
+      await pagina.waitForFunction((n) => document.querySelectorAll('#lista > li').length >= n, n, { timeout: 120_000 });
+      await pagina.waitForTimeout(500); // a lista é gravada logo depois
+      return materiasSalvas(pagina);
+    };
+    // Texto integral da matéria de testes/paginas/conjur.html, como a página publica.
+    const TEXTO_CONJUR = [
+      'Por 3 votos a 2, a 2ª Turma manteve a cobrança e afastou a multa de R$ 1.234.567,89 aplicada à distribuidora.',
+      '_Ministra Cármen Lúcia durante a sessão da 2ª Turma | Foto: Fellipe Sampaio/SCO/STF_',
+      'A 2ª Turma do Supremo Tribunal Federal decidiu, nesta segunda-feira (27/10), que a alíquota do ICMS sobre energia elétrica pode chegar a 20,5% nos estados que aprovaram lei específica até 31/12/2025. O placar foi de 3 votos a 2.',
+      'O caso envolvia a Distribuidora Maranhense de Energia S.A., autuada em R$ 1.234.567,89 pela Secretaria de Fazenda (Sefaz-MA). A empresa sustentava que a alíquota de 17% era o teto previsto no artigo 155, § 2º, inciso III, da Constituição, e que a diferença de 3,5 pontos percentuais violaria o princípio da seletividade.',
+      '**Entenda o caso**',
+      'Segundo a relatora, ministra Cármen Lúcia, a Lei Complementar nº 194/2022 não impede a cobrança acima de 17% quando há lei estadual anterior. “É constitucional a cobrança, desde que respeitada a anterioridade nonagesimal”, afirmou.',
+      'Os ministros também fixaram os seguintes pontos:',
+      '• a multa de 75% fica afastada;\n• os juros seguem a taxa Selic (−0,25 p.p. em relação ao mês anterior);\n• o processo nº 0801234-56.2025.8.10.0001 volta à 1ª instância.',
+      '“A seletividade não é um teto rígido”, escreveu o ministro André Mendonça no voto vencedor.',
+      'Ficaram vencidos os ministros Edson Fachin e Dias Toffoli, para quem a cobrança acima de 17% exige lei complementar nova. A decisão vale a partir de 1º/1/2027.',
+      'RE 1.234.567\nClique aqui para ler o acórdão',
+    ].join('\n\n');
+    if (rodar('transcrição')) try {
+      limparDownloads();
+      await controle.evaluate(() => chrome.storage.local.remove(['opcoes', 'noticias']));
+      const alvo = await abrirAlvo('conjur.html');
+      const popup = await popupPara(alvo.tabId);
+      assert.equal(await popup.isVisible('#modo-email'), true, 'o popup avisa que o texto vai para o e-mail');
+      const [noticias] = await Promise.all([paginaNoticias(), popup.click('#iniciar')]);
+      const [m1] = await esperarMaterias(noticias, 1);
+      assert.deepEqual(
+        { titulo: m1.titulo, autor: m1.autor, data: m1.data, area: m1.area, link: m1.link, tipo: m1.transcricao?.tipo },
+        { titulo: 'STF fixa alíquota de 20,5% do ICMS sobre energia', autor: 'Mariana Duarte', data: '2026-10-27', area: 'Tributário', link: `${base}/conjur.html`, tipo: 'pagina' },
+      );
+      assert.equal(m1.texto, TEXTO_CONJUR, 'texto integral exato, na ordem, sem nada do site');
+      await noticias.waitForFunction(() => /entrou no e-mail de Tributário/.test(document.getElementById('transcricoes').textContent));
+
+      // 2ª matéria com a página de notícias já aberta: chega nela.
+      const alvo2 = await abrirAlvo('jota.html');
+      await controle.evaluate((tabId) => chrome.runtime.sendMessage({ tipo: 'iniciar', tabId, pasta: 'x', opcoes: {} }), alvo2.tabId);
+      const m2 = (await esperarMaterias(noticias, 2))[1];
+      assert.deepEqual(
+        { titulo: m2.titulo, autor: m2.autor, data: m2.data, area: m2.area },
+        { titulo: 'TST: gerente de banco tem direito a 7ª e 8ª horas como extras', autor: 'Carla Menezes e Rafael Souza', data: '2026-10-26', area: 'Trabalhista' },
+      );
+      assert.ok(m2.texto.startsWith('Para a SDI-1, cargo de confiança exige fidúcia especial, o que não ficou provado no caso\n\n'), 'linha fina');
+      assert.ok(m2.texto.includes('\n\n**O que estava em jogo**\n\n'), 'intertítulo em negrito no site');
+      assert.ok(m2.texto.includes('o valor — R$ 3.150,00 por mês — não basta') && m2.texto.includes('(E-RR-1000123-45.2019.5.02.0011).'));
+      for (const lixo of ['Anúncio', 'Relacionadas', 'Reforma trabalhista completa', 'cookies', 'Assine']) assert.ok(!m2.texto.includes(lixo), lixo);
+      for (const lixo of ['Leia também', 'Publicidade', 'Mais lidas', 'Comentários', 'Compartilhar', 'newsletter', 'Revista Consultor', 'ICMS STF', 'TRIBUTÁRIO']) {
+        assert.ok(!m1.texto.includes(lixo), lixo);
+      }
+
+      // O e-mail da área: intertítulo em negrito, legenda em itálico; copiar leva o HTML.
+      const previa = await noticias.$eval('.email[data-area="Tributário"] .previa', (c) => c.shadowRoot.innerHTML);
+      assert.match(previa, /font-weight:bold; margin:12pt 0 6pt 0;">Entenda o caso<\/p>/);
+      assert.match(previa, /font-style:italic; margin:0 0 8pt 0;">Ministra Cármen Lúcia durante a sessão da 2ª Turma/);
+      assert.match(previa, /alíquota do ICMS sobre energia elétrica pode chegar a 20,5% nos estados/);
+      if (process.env.SALVAR_PRINTS) {
+        await noticias.setViewportSize({ width: 1280, height: 1600 });
+        await noticias.screenshot({ path: path.join(process.env.SALVAR_PRINTS, 'transcricao.png') });
+      }
+
+      // "Os dois": o ZIP dos prints e a matéria no e-mail.
+      const alvo3 = await abrirAlvo('materia.html');
+      await controle.evaluate((tabId) => chrome.runtime.sendMessage({ tipo: 'iniciar', tabId, pasta: 'Os dois', opcoes: { espera: 300, resultado: 'ambos' } }), alvo3.tabId);
+      await esperarArquivo('Os dois.zip');
+      const m3 = (await esperarMaterias(noticias, 3))[2];
+      assert.equal(m3.titulo, 'Juíza reconhece créditos de PIS e Cofins sobre fretes de exportação');
+      assert.equal(m3.autor, 'Mariana Duarte');
+      assert.ok(!/Spacca|TRIBUTÁRIO/.test(m3.texto), 'crédito da ilustração e chapéu fora');
+      assert.deepEqual(erros, []);
+      console.log('ok   transcrição: texto exato da página no e-mail (ConJur, JOTA), sem anúncios e menus; "os dois" com ZIP');
+      for (const p of [popup, alvo.pagina, alvo2.pagina, alvo3.pagina]) await p.close();
+      for (const p of contexto.pages().filter((x) => x.url().includes('/resultado.html'))) await p.close();
+    } catch (e) {
+      falhas.push('transcrição');
+      console.log(`FALHA transcrição\n${e.stack}`);
+    }
+
+    // OCR: tudo o que não ficou marcado para conferir (⟦ ⟧) tem de estar
+    // exatamente igual ao original, parágrafo por parágrafo.
+    const conferirOcr = (lidos, fonte) => {
+      assert.equal(lidos.length, fonte.length, `${lidos.length} parágrafos, eram ${fonte.length}:\n${lidos.join('\n\n')}`);
+      const escapar = (t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      for (const [i, lido] of lidos.entries()) {
+        const padrao = lido
+          .split(/(⟦[^⟧]*⟧)/)
+          .map((parte) => (parte.startsWith('⟦') ? '[\\s\\S]+?' : escapar(parte).replace(/\s+/g, '\\s+')))
+          .join('');
+        assert.match(fonte[i], new RegExp(`^${padrao}$`), `parágrafo ${i + 1}: o que não está marcado tem de ser igual ao original\n  lido:     ${lido}\n  original: ${fonte[i]}`);
+      }
+    };
+    // Página que só mostra o texto como imagem.
+    if (rodar('ocr')) try {
+      const alvo = await abrirAlvo('imagem.html');
+      const fonte = await alvo.pagina.evaluate(() => globalThis.PARAGRAFOS);
+      const antes = contexto.pages().find((p) => p.url().includes('/noticias.html'));
+      const n = antes ? (await materiasSalvas(antes)).length : 0;
+      const [noticias] = await Promise.all([
+        paginaNoticias(),
+        controle.evaluate((tabId) => chrome.runtime.sendMessage({ tipo: 'iniciar', tabId, pasta: 'x', opcoes: { espera: 300 } }), alvo.tabId),
+      ]);
+      const m = (await esperarMaterias(noticias, n + 1)).at(-1);
+      assert.equal(m.transcricao?.tipo, 'ocr');
+      assert.deepEqual({ titulo: m.titulo, autor: m.autor, area: m.area }, { titulo: 'Sefaz-MA publica nova tabela do ICMS', autor: 'Ana Lima', area: 'Tributário' });
+      const lidos = m.texto.split('\n\n');
+      conferirOcr(lidos, fonte);
+      for (const lixo of ['Publicidade', 'newsletter', 'Portal de Teste', 'Legislação']) assert.ok(!m.texto.includes(lixo), lixo);
+      const conferir = (m.texto.match(/⟦/g) || []).length;
+      const cartaoOcr = noticias.locator(`#lista > li[data-id="${m.id}"]`);
+      assert.match(await cartaoOcr.locator('.origem').textContent(), /OCR[\s\S]*Ver os prints/);
+      if (conferir) assert.match(await cartaoOcr.locator('.avisos').textContent(), /para conferir/);
+      const andamento = await noticias.$$eval('#transcricoes li', (l) => l.map((x) => x.textContent));
+      assert.match(andamento[0], /^Pronto: “Sefaz-MA publica nova tabela do ICMS” entrou no e-mail de Tributário/);
+      assert.ok(!andamento.some((t) => /Lendo os prints/.test(t)), 'o andamento vira "Pronto" no mesmo lugar');
+      assert.deepEqual(erros, []);
+      console.log(`ok   OCR: página só com imagem, ${lidos.length} parágrafos iguais ao original fora dos ${conferir} trechos marcados para conferir`);
+      await alvo.pagina.close();
+
+      // "Sempre OCR" numa página normal: as linhas vão para os blocos da página,
+      // então sai a mesma estrutura do texto da página, sem os botões e anúncios.
+      await noticias.evaluate(() => chrome.storage.local.remove('noticias'));
+      await noticias.reload();
+      const alvo2 = await abrirAlvo('conjur.html');
+      await controle.evaluate((tabId) => chrome.runtime.sendMessage({ tipo: 'iniciar', tabId, pasta: 'x', opcoes: { espera: 300, leitura: 'ocr' } }), alvo2.tabId);
+      const [m2] = await esperarMaterias(noticias, 1);
+      assert.equal(m2.transcricao?.tipo, 'ocr');
+      assert.deepEqual({ titulo: m2.titulo, autor: m2.autor, data: m2.data }, { titulo: 'STF fixa alíquota de 20,5% do ICMS sobre energia', autor: 'Mariana Duarte', data: '2026-10-27' });
+      conferirOcr(m2.texto.split('\n\n'), TEXTO_CONJUR.split('\n\n'));
+      console.log(`ok   OCR pedido numa página normal: estrutura da página, ${(m2.texto.match(/⟦/g) || []).length} trechos marcados, o resto igual ao original`);
+      await alvo2.pagina.close();
+      await noticias.close();
+    } catch (e) {
+      falhas.push('OCR');
+      console.log(`FALHA OCR\n${e.stack}`);
+    }
+
     await controle.close();
 
     // Versão sem instalar: script colado na página + compartilhamento de aba.
@@ -737,6 +889,9 @@ async function main() {
 
     // Ferramenta de notícias: .txt soltos + .zip do Windows com pasta da área.
     if (rodar('notícias')) try {
+      // começa com a lista vazia (os blocos de transcrição deixam matérias nela)
+      for (const p of contexto.pages().filter((x) => x.url().includes('/noticias.html'))) await p.close();
+      await sw.evaluate(() => chrome.storage.local.remove('noticias'));
       const pasta = path.join(__dirname, 'noticias');
       const zipNoticias = path.join(tmp, 'noticias.zip');
       execFileSync('python3', [

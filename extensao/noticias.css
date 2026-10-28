@@ -216,6 +216,47 @@ kbd {
   margin: 0;
 }
 
+.dica-captura {
+  margin: 0 0 12px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: var(--destaque-suave);
+  color: var(--texto);
+}
+
+.transcricoes {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.transcricoes[hidden] {
+  display: none;
+}
+
+.transcricao {
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--borda);
+  background: var(--cartao);
+}
+
+.transcricao.ocr {
+  border-color: var(--destaque);
+}
+
+.transcricao.feita {
+  border-color: var(--trabalhista);
+}
+
+.transcricao.erro {
+  border-color: var(--aviso-texto);
+  background: var(--aviso-fundo);
+  color: var(--aviso-texto);
+}
+
 .relatorio:empty {
   display: none;
 }

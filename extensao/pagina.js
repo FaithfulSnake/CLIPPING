@@ -437,6 +437,12 @@
       escolhida = descricao?.area || null;
     },
 
+    // Elemento da área escolhida (para o leitor da matéria procurar só dentro dele).
+    elementoEscolhido() {
+      if (!escolhida) return null;
+      return escolhida.el || (escolhida.tipo === 'quadro' ? escolhida.doc.body : null);
+    },
+
     // Forma de reencontrar a área numa próxima captura neste site.
     lembranca(descricao) {
       const sc = descricao.area;
@@ -498,6 +504,7 @@
         base *= k;
       }
       await aguardarPintura();
+      const d = deslocamento(sc.win);
       return {
         topo: sc.topo(),
         max: sc.maximo(),
@@ -505,6 +512,9 @@
         ocupadoTopo: Math.ceil(topo),
         ocupadoBase: Math.ceil(base),
         janela: { largura: innerWidth, altura: innerHeight },
+        // onde ficam, na tela, a parte que entra no print e a área que rola (para o OCR)
+        regiaoTopo: Math.round(reg.top + d.y),
+        rolagemTopo: Math.round(sc.regiao().top + d.y),
       };
     },
 

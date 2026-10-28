@@ -442,6 +442,12 @@
       escolhida = descricao?.area || null;
     },
 
+    // Elemento da área escolhida (para o leitor da matéria procurar só dentro dele).
+    elementoEscolhido() {
+      if (!escolhida) return null;
+      return escolhida.el || (escolhida.tipo === 'quadro' ? escolhida.doc.body : null);
+    },
+
     // Forma de reencontrar a área numa próxima captura neste site.
     lembranca(descricao) {
       const sc = descricao.area;
@@ -503,6 +509,7 @@
         base *= k;
       }
       await aguardarPintura();
+      const d = deslocamento(sc.win);
       return {
         topo: sc.topo(),
         max: sc.maximo(),
@@ -510,6 +517,9 @@
         ocupadoTopo: Math.ceil(topo),
         ocupadoBase: Math.ceil(base),
         janela: { largura: innerWidth, altura: innerHeight },
+        // onde ficam, na tela, a parte que entra no print e a área que rola (para o OCR)
+        regiaoTopo: Math.round(reg.top + d.y),
+        rolagemTopo: Math.round(sc.regiao().top + d.y),
       };
     },
 
@@ -538,6 +548,8 @@ const OPCOES_PADRAO = Object.freeze({
   baixarAuto: true,
   areaRolagem: 'auto', // 'auto' (a extensão encontra) | 'escolher' (clicar na página antes)
   recorte: 'tela', // 'tela' inteira | 'area' que rola | 'regiao' marcada na página
+  resultado: 'email', // 'email' (texto transcrito no e-mail de notícias) | 'zip' (prints) | 'ambos'
+  leitura: 'auto', // 'auto' (texto da página; OCR só se ela não tiver) | 'ocr' (sempre OCR dos prints)
 });
 
 function normalizarOpcoes(o = {}) {
@@ -558,6 +570,8 @@ function normalizarOpcoes(o = {}) {
     baixarAuto: booleano(o.baixarAuto, p.baixarAuto),
     areaRolagem: o.areaRolagem === 'escolher' ? 'escolher' : 'auto',
     recorte: o.recorte === 'area' || o.recorte === 'regiao' ? o.recorte : 'tela',
+    resultado: o.resultado === 'zip' || o.resultado === 'ambos' ? o.resultado : 'email',
+    leitura: o.leitura === 'ocr' ? 'ocr' : 'auto',
   };
 }
 
@@ -625,8 +639,9 @@ const esperar = (ms) => new Promise((pronto) => setTimeout(pronto, ms));
 //   antesDoPrint()       espera a aba estar visível, etc.
 //   aoCapturar(blob, n, porcento, medidas)
 //   deveParar()          true quando o usuário pede para parar
+//   faixa(inicio)        opcional: { de, ate } para rolar só por um trecho (a matéria)
 // Devolve { total, motivo: 'fim'|'parado'|'limite'|'erro', erro }.
-async function capturarComRolagem({ opcoes, pagina, configPagina, tirarPrint, antesDoPrint, aoCapturar, deveParar }) {
+async function capturarComRolagem({ opcoes, pagina, configPagina, tirarPrint, antesDoPrint, aoCapturar, deveParar, faixa }) {
   let total = 0;
   let motivo = 'fim';
   let erro = null;
@@ -634,6 +649,8 @@ async function capturarComRolagem({ opcoes, pagina, configPagina, tirarPrint, an
   let anterior = -1;
   try {
     const inicio = await pagina('iniciar', configPagina ?? null);
+    const trecho = faixa?.(inicio) || null;
+    if (trecho) alvo = Math.max(0, Math.round(trecho.de));
     for (;;) {
       if (deveParar()) {
         motivo = 'parado';
@@ -661,6 +678,7 @@ async function capturarComRolagem({ opcoes, pagina, configPagina, tirarPrint, an
       const porcento = m.max > 0 ? Math.min(100, Math.round((m.topo / m.max) * 100)) : 100;
       await aoCapturar(blob, total, porcento, m);
       anterior = m.topo;
+      if (trecho && m.topo + m.altura >= trecho.ate) break; // passou do fim do trecho
 
       if (m.topo >= m.max - 1) {
         // Chegou ao fim; dá tempo para conteúdo carregado sob demanda aumentar a página.

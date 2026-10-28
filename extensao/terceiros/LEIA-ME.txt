@@ -1,0 +1,12 @@
+Código de terceiros usado pela extensão, sem alterações (só os comentários de
+"source map" foram tirados dos arquivos .min.js, que não vêm junto).
+
+readability/   Readability.js 0.6.0 da Mozilla (o mesmo do "Modo de leitura" do
+               Firefox): acha o corpo da matéria na página, sem menus e anúncios.
+               Licença Apache 2.0 (readability/LICENSE.md).
+
+tesseract/     Tesseract.js 7.0.0 e tesseract.js-core 7.0.0 (motor de OCR em
+               WebAssembly), licença Apache 2.0 (LICENSE-tesseract.js.md e
+               LICENSE-tesseract.js-core.txt; avisos de terceiros nos *.LICENSE.txt).
+               por.traineddata.gz: modelo de português do Tesseract (tessdata
+               4.0.0_best_int, pacote @tesseract.js-data/por 1.0.0), licença Apache 2.0.

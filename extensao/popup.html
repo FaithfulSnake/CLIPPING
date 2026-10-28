@@ -12,18 +12,23 @@
     </header>
 
     <nav class="abas" role="tablist" aria-label="Ferramentas">
-      <button id="aba-prints" role="tab" type="button" aria-controls="painel-prints" aria-selected="true">Prints com rolagem</button>
+      <button id="aba-prints" role="tab" type="button" aria-controls="painel-prints" aria-selected="true">Captura</button>
       <button id="aba-noticias" role="tab" type="button" aria-controls="painel-noticias" aria-selected="false" tabindex="-1">Notícias jurídicas</button>
     </nav>
 
     <div id="painel-prints" role="tabpanel" aria-labelledby="aba-prints">
       <section id="tela-config">
-        <label class="campo">
+        <p id="modo-email" class="modo-email" hidden>
+          O <strong>texto integral</strong> da matéria vai direto para o e-mail de <strong>Notícias jurídicas</strong>, na área do
+          assunto, exatamente como o site publica. Se a página não tiver o texto (só imagem), a extensão lê os prints com OCR.
+        </p>
+
+        <label id="campo-pasta" class="campo">
           <span>Nome da pasta e do ZIP</span>
           <input id="pasta" type="text" maxlength="100" spellcheck="false" autocomplete="off" />
         </label>
 
-        <fieldset class="pacote">
+        <fieldset id="campo-pacote" class="pacote">
           <legend>Pacote</legend>
           <div id="pacote-opcoes" class="pacote-opcoes"></div>
           <input id="novo-pacote" type="text" maxlength="60" spellcheck="false" autocomplete="off" aria-label="Nome do novo pacote" hidden />
@@ -43,6 +48,32 @@
 
         <details id="configuracoes">
           <summary>Configurações <span id="nao-salvas" class="selo-pendente" hidden>não salvas</span></summary>
+          <fieldset class="grupo">
+            <legend>Resultado da captura</legend>
+            <label class="check">
+              <input type="radio" name="resultado" value="email" />
+              <span>Texto da matéria no e-mail de notícias (transcrição)</span>
+            </label>
+            <label class="check">
+              <input type="radio" name="resultado" value="zip" />
+              <span>ZIP com os prints</span>
+            </label>
+            <label class="check">
+              <input type="radio" name="resultado" value="ambos" />
+              <span>Os dois</span>
+            </label>
+          </fieldset>
+          <fieldset class="grupo">
+            <legend>Leitura do texto</legend>
+            <label class="check">
+              <input type="radio" name="leitura" value="auto" />
+              <span>Texto da página (exato); OCR dos prints só quando a página não tiver o texto</span>
+            </label>
+            <label class="check">
+              <input type="radio" name="leitura" value="ocr" />
+              <span>Sempre OCR dos prints (para páginas que mostram o texto como imagem)</span>
+            </label>
+          </fieldset>
           <fieldset class="grupo">
             <legend>Área de rolagem</legend>
             <label class="check">

@@ -1,6 +1,7 @@
 import {
   AREAS,
   assunto,
+  contarConferir,
   contarPalavras,
   dataPredominante,
   fonteDoLink,
@@ -49,9 +50,13 @@ const hoje = () => {
 };
 
 let gravacao = null;
+let ultimaGravada = '';
 function salvar() {
   clearTimeout(gravacao);
-  gravacao = setTimeout(() => armazenamento.gravar('noticias', estado), 300);
+  gravacao = setTimeout(() => {
+    ultimaGravada = JSON.stringify(estado);
+    armazenamento.gravar('noticias', estado);
+  }, 300);
 }
 
 function avisar(texto) {
@@ -334,6 +339,8 @@ function avisosDe(m) {
     avisos.push(`matéria de ${formatarData(m.data, '/')}, e-mail de ${formatarData(dataDaArea(m.area), '/')}`);
   }
   if (contarPalavras(m.texto) < 80) avisos.push('texto curto: confira se é a matéria inteira');
+  const conferir = contarConferir(m.texto);
+  if (conferir) avisos.push(`${conferir} ${conferir === 1 ? 'trecho' : 'trechos'} para conferir (entre ⟦ ⟧ no texto, em amarelo no e-mail)`);
   return avisos;
 }
 
@@ -419,8 +426,22 @@ function cartao(m, posicao) {
     campo('Título', titulo, 'largo'),
     criar('div', { class: 'linha' }, [campo('Por', autor), campo('Link', link, 'link'), campo('Data', data, 'data')]),
     criar('p', { class: 'avisos' }),
-    criar('details', { class: 'texto' }, [resumoTexto, texto, criar('p', { class: 'suave origem', textContent: m.origem ? `Arquivo: ${m.origem}` : 'Texto colado' })]),
+    criar('details', { class: 'texto' }, [resumoTexto, texto, origemDe(m)]),
   ]);
+}
+
+// De onde veio a matéria: arquivo, colagem ou transcrição da captura.
+function origemDe(m) {
+  const el = criar('p', { class: 'suave origem' });
+  if (!m.transcricao) {
+    el.textContent = m.origem ? `Arquivo: ${m.origem}` : 'Texto colado';
+    return el;
+  }
+  el.textContent = m.origem;
+  if (m.transcricao.tipo === 'ocr' && m.transcricao.sessao) {
+    el.append(' · ', criar('a', { href: `resultado.html?sessao=${encodeURIComponent(m.transcricao.sessao)}`, target: '_blank', textContent: 'Ver os prints' }));
+  }
+  return el;
 }
 
 function desenharLista() {
@@ -494,7 +515,10 @@ function copiarPorSelecao(html) {
 async function copiarEmail(area) {
   const dados = dadosDoEmail(area);
   const html = montarEmail(dados);
-  const pronto = `E-mail de ${area} copiado. No Outlook, clique no corpo da mensagem e aperte Ctrl+V.`;
+  const conferir = dados.materias.reduce((n, m) => n + contarConferir(m.texto), 0);
+  const pronto =
+    `E-mail de ${area} copiado. No Outlook, clique no corpo da mensagem e aperte Ctrl+V.` +
+    (conferir ? ` Atenção: ${conferir} ${conferir === 1 ? 'trecho lido por OCR ainda está' : 'trechos lidos por OCR ainda estão'} em amarelo, para conferir.` : '');
   try {
     await navigator.clipboard.write([
       new ClipboardItem({
@@ -689,6 +713,51 @@ $('baixar-todos').addEventListener('click', () => {
   baixar(criarZip(entradas), `EMAILS_NOTICIAS_${formatarData(datas.at(-1), '-')}.zip`);
 });
 
+// ---------------------------------------------------------------- transcrição
+
+// Matéria que já vem montada da captura (texto da página ou OCR dos prints).
+function adicionarPronta(materia) {
+  const chave = chaveDuplicada(materia);
+  const ja = chave && estado.materias.find((m) => chaveDuplicada(m) === chave);
+  if (ja) return { id: ja.id, repetida: true };
+  const nova = { id: proximoId++, ...materia };
+  estado.materias.push(nova);
+  salvar();
+  desenharLista();
+  atualizarEmails();
+  return { id: nova.id, repetida: false };
+}
+
+const andamento = new Map();
+
+// Andamento das transcrições, no passo 1.
+function mostrarTranscricao(info) {
+  const caixa = $('transcricoes');
+  let el = andamento.get(info.id);
+  if (!el) {
+    el = criar('li');
+    andamento.set(info.id, el);
+    caixa.prepend(el);
+    while (caixa.children.length > 6) caixa.lastElementChild.remove();
+  }
+  caixa.hidden = false;
+  el.className = `transcricao ${info.estado}`;
+  if (info.estado === 'ocr') {
+    el.textContent = `Lendo os prints com OCR (${info.feito} de ${info.total}): ${info.titulo}${info.motivo ? ` (${info.motivo})` : ''}…`;
+  } else if (info.estado === 'erro') {
+    el.textContent = `Não foi possível transcrever: ${info.mensagem}`;
+  } else if (info.estado === 'feita') {
+    const n = estado.materias.findIndex((m) => m.id === info.materiaId) + 1;
+    el.textContent = info.repetida
+      ? `“${info.titulo}” já estava na lista (matéria ${n}). Para trocar, remova a antiga e capture de novo.`
+      : `Pronto: “${info.titulo}” entrou no e-mail de ${info.area} (matéria ${n})${info.ocr ? ', lida por OCR: confira os trechos em amarelo' : ', com o texto exato da página'}.`;
+    destacar(info.materiaId);
+    const cartaoNovo = document.querySelector(`#lista [data-id="${info.materiaId}"] details.texto`);
+    if (cartaoNovo && !info.repetida) cartaoNovo.open = true;
+    avisar(el.textContent);
+  }
+}
+
 async function iniciar() {
   const [salvo, para] = await Promise.all([armazenamento.ler('noticias'), armazenamento.ler('noticiasPara')]);
   if (salvo?.materias) {
@@ -699,6 +768,24 @@ async function iniciar() {
   $('destinatarios').value = para || '';
   desenharLista();
   atualizarEmails();
+  // Dentro da extensão, as capturas transcritas chegam aqui (depois de ler a lista salva).
+  if (globalThis.chrome?.runtime?.id) {
+    const { iniciarTranscricoes } = await import('./transcrever.js');
+    iniciarTranscricoes({ adicionar: adicionarPronta, mostrar: mostrarTranscricao });
+    // Esta página aberta em outra aba também: as matérias que entram lá aparecem aqui
+    // (e não somem quando esta gravar).
+    chrome.storage.onChanged.addListener((mudancas, area) => {
+      const novo = area === 'local' && mudancas.noticias?.newValue;
+      if (!novo || JSON.stringify(novo) === ultimaGravada) return;
+      const ids = new Set(estado.materias.map((m) => m.id));
+      const chegaram = (novo.materias || []).filter((m) => !ids.has(m.id));
+      if (!chegaram.length) return;
+      estado.materias.push(...chegaram);
+      proximoId = Math.max(proximoId, ...chegaram.map((m) => m.id + 1));
+      desenharLista();
+      atualizarEmails();
+    });
+  }
 }
 
 iniciar();

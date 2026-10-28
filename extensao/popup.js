@@ -6,7 +6,7 @@ import { chaveDoNome, criarPacote, guardarEscolha, lerPacotes, nomeNoPacote, nom
 const $ = (id) => document.getElementById(id);
 const NUMEROS = ['sobreposicao', 'espera', 'limite'];
 const CAIXAS = ['esconderFixos', 'incluirInfo', 'baixarAuto'];
-const ESCOLHAS = ['formato', 'areaRolagem', 'recorte'];
+const ESCOLHAS = ['formato', 'areaRolagem', 'recorte', 'resultado', 'leitura'];
 
 let aba = null;
 let salvas = null; // configurações gravadas (só mudam ao clicar em Salvar)
@@ -44,6 +44,11 @@ function verAlteracoes() {
   if (atuais.recorte === 'regiao') passos.push('marcar a região do print');
   $('dica-escolha').textContent = passos.length ? `Ao iniciar, a própria página vai pedir para você ${passos.join(' e ')}.` : '';
   $('dica-escolha').hidden = !passos.length;
+  // só para o e-mail: nome do ZIP e pacote não se aplicam
+  const soEmail = atuais.resultado === 'email';
+  $('modo-email').hidden = !soEmail;
+  $('campo-pasta').hidden = soEmail;
+  $('campo-pacote').hidden = soEmail;
 }
 
 async function enviar(msg) {
@@ -85,12 +90,19 @@ function verificarPagina(url = '') {
 
 function textoStatus(s) {
   const prints = (n) => `${n} ${n === 1 ? 'print' : 'prints'}`;
+  const paraEmail = s.resultado !== 'zip';
   switch (s.estado) {
+    case 'lendo':
+      return 'Lendo a matéria na página…';
     case 'capturando':
-      return s.total ? `Capturando… ${prints(s.total)} (${s.porcento}% da página)` : 'Preparando a página…';
+      if (!s.total) return s.ocr ? 'A página não tem o texto: tirando os prints para ler com OCR…' : 'Preparando a página…';
+      return `${s.ocr ? 'Prints para o OCR' : 'Capturando'}… ${prints(s.total)} (${s.porcento}% da página)`;
     case 'pausado':
       return `Pausado em ${prints(s.total)}: volte para a aba da página para continuar.`;
     case 'concluido':
+      if (paraEmail && !s.total) return 'Pronto! A matéria foi para o e-mail de Notícias jurídicas, com o texto exato da página.';
+      if (paraEmail && s.ocr) return `Pronto! ${prints(s.total)}. A leitura com OCR continua na página Notícias jurídicas.${s.mensagem ? ` (${s.mensagem})` : ''}`;
+      if (paraEmail) return `Pronto! A matéria foi para o e-mail de Notícias jurídicas e o ZIP com ${prints(s.total)} abriu em outra aba.`;
       return `Pronto! ${prints(s.total)}. O resultado abriu em uma nova aba.${s.mensagem ? ` (${s.mensagem})` : ''}`;
     case 'erro':
       return `Erro: ${s.mensagem || 'falha desconhecida.'}`;
@@ -271,8 +283,12 @@ $('iniciar').addEventListener('click', async () => {
   const opcoes = coletar(); // o que está na tela vale para esta captura, sem gravar
   const pasta = limparNome($('pasta').value || aba?.title);
   $('pasta').value = pasta;
-  const pacoteId = await resolverPacote();
-  await guardarEscolha(pacoteId);
+  // pacote é só do ZIP: no modo e-mail nada é criado nem trocado
+  let pacoteId = null;
+  if (opcoes.resultado !== 'email') {
+    pacoteId = await resolverPacote();
+    await guardarEscolha(pacoteId);
+  }
   mostrarStatus({ ativo: true, estado: 'capturando', total: 0, porcento: 0 });
   const resposta = await enviar({ tipo: 'iniciar', tabId: aba.id, pasta, opcoes, pacoteId });
   if (resposta?.erro) {

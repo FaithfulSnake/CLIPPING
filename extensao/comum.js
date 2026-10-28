@@ -11,6 +11,8 @@ export const OPCOES_PADRAO = Object.freeze({
   baixarAuto: true,
   areaRolagem: 'auto', // 'auto' (a extensão encontra) | 'escolher' (clicar na página antes)
   recorte: 'tela', // 'tela' inteira | 'area' que rola | 'regiao' marcada na página
+  resultado: 'email', // 'email' (texto transcrito no e-mail de notícias) | 'zip' (prints) | 'ambos'
+  leitura: 'auto', // 'auto' (texto da página; OCR só se ela não tiver) | 'ocr' (sempre OCR dos prints)
 });
 
 export function normalizarOpcoes(o = {}) {
@@ -31,6 +33,8 @@ export function normalizarOpcoes(o = {}) {
     baixarAuto: booleano(o.baixarAuto, p.baixarAuto),
     areaRolagem: o.areaRolagem === 'escolher' ? 'escolher' : 'auto',
     recorte: o.recorte === 'area' || o.recorte === 'regiao' ? o.recorte : 'tela',
+    resultado: o.resultado === 'zip' || o.resultado === 'ambos' ? o.resultado : 'email',
+    leitura: o.leitura === 'ocr' ? 'ocr' : 'auto',
   };
 }
 
@@ -98,8 +102,9 @@ const esperar = (ms) => new Promise((pronto) => setTimeout(pronto, ms));
 //   antesDoPrint()       espera a aba estar visível, etc.
 //   aoCapturar(blob, n, porcento, medidas)
 //   deveParar()          true quando o usuário pede para parar
+//   faixa(inicio)        opcional: { de, ate } para rolar só por um trecho (a matéria)
 // Devolve { total, motivo: 'fim'|'parado'|'limite'|'erro', erro }.
-export async function capturarComRolagem({ opcoes, pagina, configPagina, tirarPrint, antesDoPrint, aoCapturar, deveParar }) {
+export async function capturarComRolagem({ opcoes, pagina, configPagina, tirarPrint, antesDoPrint, aoCapturar, deveParar, faixa }) {
   let total = 0;
   let motivo = 'fim';
   let erro = null;
@@ -107,6 +112,8 @@ export async function capturarComRolagem({ opcoes, pagina, configPagina, tirarPr
   let anterior = -1;
   try {
     const inicio = await pagina('iniciar', configPagina ?? null);
+    const trecho = faixa?.(inicio) || null;
+    if (trecho) alvo = Math.max(0, Math.round(trecho.de));
     for (;;) {
       if (deveParar()) {
         motivo = 'parado';
@@ -134,6 +141,7 @@ export async function capturarComRolagem({ opcoes, pagina, configPagina, tirarPr
       const porcento = m.max > 0 ? Math.min(100, Math.round((m.topo / m.max) * 100)) : 100;
       await aoCapturar(blob, total, porcento, m);
       anterior = m.topo;
+      if (trecho && m.topo + m.altura >= trecho.ate) break; // passou do fim do trecho
 
       if (m.topo >= m.max - 1) {
         // Chegou ao fim; dá tempo para conteúdo carregado sob demanda aumentar a página.

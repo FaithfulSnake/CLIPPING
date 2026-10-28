@@ -200,6 +200,9 @@ const LIXO = new Set(
 );
 const LIXO_INICIO = /^(revista consultor juridico, \d|topo da pagina$|voltar ao topo$)/;
 
+// Linha solta que é do site, não da matéria ("Compartilhar", "Spacca"…).
+const linhaDeLixo = (linha) => LIXO.has(normalizar(linha)) || LIXO_INICIO.test(normalizar(linha));
+
 const FONTES = [
   [/(^|\.)jota\.info$/, 'JOTA'],
   [/(^|\.)migalhas\.com\.br$/, 'Migalhas'],
@@ -404,6 +407,34 @@ const esc = (s) =>
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
 
+// Marcas no texto integral (vêm da transcrição; dá para escrever à mão também):
+//   **Intertítulo**     parágrafo inteiro em negrito
+//   _Legenda da foto_   parágrafo inteiro em itálico
+//   ⟦trecho⟧            o OCR teve dúvida: aparece em amarelo até alguém conferir
+const INTERTITULO = /^\*\*(.+)\*\*$/s;
+const LEGENDA = /^_(.+)_$/s;
+const CONFERIR = /⟦([^⟦⟧]*)⟧/g;
+
+const contarConferir = (texto) => (String(texto ?? '').match(CONFERIR) || []).length;
+
+// Tira as marcas (para o texto simples).
+const semMarcas = (linha) => {
+  const l = String(linha).replace(CONFERIR, '$1');
+  return l.match(INTERTITULO)?.[1] ?? l.match(LEGENDA)?.[1] ?? l;
+};
+
+const conferirHtml = (linha) => esc(linha).replace(/⟦([^⟦⟧]*)⟧/g, '<span style="background-color:#ffff00; mso-highlight:yellow;">$1</span>');
+
+function paragrafoHtml(linhas) {
+  if (linhas.length === 1 && INTERTITULO.test(linhas[0])) {
+    return `<p style="font-family:Calibri,sans-serif; font-weight:bold; margin:12pt 0 6pt 0;">${conferirHtml(linhas[0].match(INTERTITULO)[1])}</p>`;
+  }
+  if (linhas.length === 1 && LEGENDA.test(linhas[0])) {
+    return `<p style="text-align:justify; font-style:italic; margin:0 0 8pt 0;">${conferirHtml(linhas[0].match(LEGENDA)[1])}</p>`;
+  }
+  return `<p style="text-align:justify; margin:0 0 8pt 0;">${linhas.map(conferirHtml).join('<br>')}</p>`;
+}
+
 // HTML do e-mail de uma área, no modelo do escritório (estilos inline, que o
 // Outlook mantém). Cada parágrafo vira um <p> próprio: o Outlook ignora
 // "white-space:pre-line" e juntaria o texto todo num bloco só.
@@ -426,7 +457,7 @@ function montarEmail({ area, data, materias }) {
       `<p style="font-family:Calibri,sans-serif; font-weight:bold; text-align:center; margin:18pt 0 ${m.autor ? 4 : 12}pt 0;"><a name="materia-${n}"></a>${esc(m.titulo)}</p>`,
     );
     if (m.autor) h.push(`<p style="text-align:center; margin:0 0 12pt 0;">Por: ${esc(m.autor)}</p>`);
-    for (const p of paragrafos(m.texto)) h.push(`<p style="text-align:justify; margin:0 0 8pt 0;">${p.map(esc).join('<br>')}</p>`);
+    for (const p of paragrafos(m.texto)) h.push(paragrafoHtml(p));
     if (linkValido(m.link)) {
       h.push(`<p style="margin:12pt 0 18pt 0;"><strong>Link de Acesso:</strong> <a href="${esc(m.link)}">${esc(m.link)}</a></p>`);
     }
@@ -442,7 +473,7 @@ function montarTexto({ area, data, materias }) {
   for (const m of materias) {
     partes.push('', '', m.titulo);
     if (m.autor) partes.push(`Por: ${m.autor}`);
-    partes.push('', ...paragrafos(m.texto).map((p) => `${p.join('\n')}\n`));
+    partes.push('', ...paragrafos(m.texto).map((p) => `${p.map(semMarcas).join('\n')}\n`));
     if (linkValido(m.link)) partes.push(`Link de Acesso: ${m.link}`);
   }
   return `${partes.join('\n').trim()}\n`;
@@ -641,9 +672,13 @@ const hoje = () => {
 };
 
 let gravacao = null;
+let ultimaGravada = '';
 function salvar() {
   clearTimeout(gravacao);
-  gravacao = setTimeout(() => armazenamento.gravar('noticias', estado), 300);
+  gravacao = setTimeout(() => {
+    ultimaGravada = JSON.stringify(estado);
+    armazenamento.gravar('noticias', estado);
+  }, 300);
 }
 
 function avisar(texto) {
@@ -926,6 +961,8 @@ function avisosDe(m) {
     avisos.push(`matéria de ${formatarData(m.data, '/')}, e-mail de ${formatarData(dataDaArea(m.area), '/')}`);
   }
   if (contarPalavras(m.texto) < 80) avisos.push('texto curto: confira se é a matéria inteira');
+  const conferir = contarConferir(m.texto);
+  if (conferir) avisos.push(`${conferir} ${conferir === 1 ? 'trecho' : 'trechos'} para conferir (entre ⟦ ⟧ no texto, em amarelo no e-mail)`);
   return avisos;
 }
 
@@ -1011,8 +1048,22 @@ function cartao(m, posicao) {
     campo('Título', titulo, 'largo'),
     criar('div', { class: 'linha' }, [campo('Por', autor), campo('Link', link, 'link'), campo('Data', data, 'data')]),
     criar('p', { class: 'avisos' }),
-    criar('details', { class: 'texto' }, [resumoTexto, texto, criar('p', { class: 'suave origem', textContent: m.origem ? `Arquivo: ${m.origem}` : 'Texto colado' })]),
+    criar('details', { class: 'texto' }, [resumoTexto, texto, origemDe(m)]),
   ]);
+}
+
+// De onde veio a matéria: arquivo, colagem ou transcrição da captura.
+function origemDe(m) {
+  const el = criar('p', { class: 'suave origem' });
+  if (!m.transcricao) {
+    el.textContent = m.origem ? `Arquivo: ${m.origem}` : 'Texto colado';
+    return el;
+  }
+  el.textContent = m.origem;
+  if (m.transcricao.tipo === 'ocr' && m.transcricao.sessao) {
+    el.append(' · ', criar('a', { href: `resultado.html?sessao=${encodeURIComponent(m.transcricao.sessao)}`, target: '_blank', textContent: 'Ver os prints' }));
+  }
+  return el;
 }
 
 function desenharLista() {
@@ -1086,7 +1137,10 @@ function copiarPorSelecao(html) {
 async function copiarEmail(area) {
   const dados = dadosDoEmail(area);
   const html = montarEmail(dados);
-  const pronto = `E-mail de ${area} copiado. No Outlook, clique no corpo da mensagem e aperte Ctrl+V.`;
+  const conferir = dados.materias.reduce((n, m) => n + contarConferir(m.texto), 0);
+  const pronto =
+    `E-mail de ${area} copiado. No Outlook, clique no corpo da mensagem e aperte Ctrl+V.` +
+    (conferir ? ` Atenção: ${conferir} ${conferir === 1 ? 'trecho lido por OCR ainda está' : 'trechos lidos por OCR ainda estão'} em amarelo, para conferir.` : '');
   try {
     await navigator.clipboard.write([
       new ClipboardItem({
@@ -1281,6 +1335,51 @@ $('baixar-todos').addEventListener('click', () => {
   baixar(criarZip(entradas), `EMAILS_NOTICIAS_${formatarData(datas.at(-1), '-')}.zip`);
 });
 
+// ---------------------------------------------------------------- transcrição
+
+// Matéria que já vem montada da captura (texto da página ou OCR dos prints).
+function adicionarPronta(materia) {
+  const chave = chaveDuplicada(materia);
+  const ja = chave && estado.materias.find((m) => chaveDuplicada(m) === chave);
+  if (ja) return { id: ja.id, repetida: true };
+  const nova = { id: proximoId++, ...materia };
+  estado.materias.push(nova);
+  salvar();
+  desenharLista();
+  atualizarEmails();
+  return { id: nova.id, repetida: false };
+}
+
+const andamento = new Map();
+
+// Andamento das transcrições, no passo 1.
+function mostrarTranscricao(info) {
+  const caixa = $('transcricoes');
+  let el = andamento.get(info.id);
+  if (!el) {
+    el = criar('li');
+    andamento.set(info.id, el);
+    caixa.prepend(el);
+    while (caixa.children.length > 6) caixa.lastElementChild.remove();
+  }
+  caixa.hidden = false;
+  el.className = `transcricao ${info.estado}`;
+  if (info.estado === 'ocr') {
+    el.textContent = `Lendo os prints com OCR (${info.feito} de ${info.total}): ${info.titulo}${info.motivo ? ` (${info.motivo})` : ''}…`;
+  } else if (info.estado === 'erro') {
+    el.textContent = `Não foi possível transcrever: ${info.mensagem}`;
+  } else if (info.estado === 'feita') {
+    const n = estado.materias.findIndex((m) => m.id === info.materiaId) + 1;
+    el.textContent = info.repetida
+      ? `“${info.titulo}” já estava na lista (matéria ${n}). Para trocar, remova a antiga e capture de novo.`
+      : `Pronto: “${info.titulo}” entrou no e-mail de ${info.area} (matéria ${n})${info.ocr ? ', lida por OCR: confira os trechos em amarelo' : ', com o texto exato da página'}.`;
+    destacar(info.materiaId);
+    const cartaoNovo = document.querySelector(`#lista [data-id="${info.materiaId}"] details.texto`);
+    if (cartaoNovo && !info.repetida) cartaoNovo.open = true;
+    avisar(el.textContent);
+  }
+}
+
 async function iniciar() {
   const [salvo, para] = await Promise.all([armazenamento.ler('noticias'), armazenamento.ler('noticiasPara')]);
   if (salvo?.materias) {
@@ -1291,6 +1390,24 @@ async function iniciar() {
   $('destinatarios').value = para || '';
   desenharLista();
   atualizarEmails();
+  // Dentro da extensão, as capturas transcritas chegam aqui (depois de ler a lista salva).
+  if (globalThis.chrome?.runtime?.id) {
+    const { iniciarTranscricoes } = await import('./transcrever.js');
+    iniciarTranscricoes({ adicionar: adicionarPronta, mostrar: mostrarTranscricao });
+    // Esta página aberta em outra aba também: as matérias que entram lá aparecem aqui
+    // (e não somem quando esta gravar).
+    chrome.storage.onChanged.addListener((mudancas, area) => {
+      const novo = area === 'local' && mudancas.noticias?.newValue;
+      if (!novo || JSON.stringify(novo) === ultimaGravada) return;
+      const ids = new Set(estado.materias.map((m) => m.id));
+      const chegaram = (novo.materias || []).filter((m) => !ids.has(m.id));
+      if (!chegaram.length) return;
+      estado.materias.push(...chegaram);
+      proximoId = Math.max(proximoId, ...chegaram.map((m) => m.id + 1));
+      desenharLista();
+      atualizarEmails();
+    });
+  }
 }
 
 iniciar();

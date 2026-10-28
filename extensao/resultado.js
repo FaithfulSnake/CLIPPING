@@ -1,5 +1,5 @@
 import { avisoMotivo, nomePrint } from './comum.js';
-import { apagarSessao, lerPrints, lerSessao, salvarSessao } from './db.js';
+import { apagarSessao, atualizarSessao, lerPrints, lerSessao } from './db.js';
 import {
   acesso,
   apagarCopia,
@@ -223,7 +223,8 @@ async function salvarEm(ref, { emDownloads = false } = {}) {
     const novo = ref ? await salvarNoPacote(ref, anterior, emDownloads) : await salvarSolto();
     Object.assign(sessao, { salvo: novo, baixado: true, pacote: ref });
     delete sessao.download;
-    await salvarSessao(sessao);
+    // só os campos do ZIP: a transcrição da mesma captura pode estar gravando os dela
+    await atualizarSessao(sessao.id, { salvo: novo, baixado: true, pacote: ref, download: undefined });
     if (!novo.perguntou) fecharAlerta('pergunta');
 
     let mensagem = ref
@@ -351,7 +352,8 @@ async function main() {
   });
   ocupado(false);
 
-  if (sessao.baixarAuto && !salvoAtual()) await salvarEm(sessao.pacote);
+  // captura feita só para o e-mail de notícias: os prints ficam para conferir, sem ZIP automático
+  if (sessao.baixarAuto && sessao.zip !== false && !salvoAtual()) await salvarEm(sessao.pacote);
 }
 
 main().catch((e) => {

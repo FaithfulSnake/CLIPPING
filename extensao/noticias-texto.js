@@ -59,6 +59,7 @@ export function linhaSoDeData(linha) {
   const resto = normalizar(linha)
     .replace(RE_DATA, ' ')
     .replace(/\d{1,2}\s*(?:h|:)\s*\d{0,2}(?:min)?/g, ' ')
+    .replace(/\bha\s+\d+\s*(minutos?|min|horas?|dias?|semanas?|meses|mes|anos?)\b/g, ' ')
     .replace(/\b(publicad[oa]|atualizad[oa]|postad[oa]|em|as|de|segunda|terca|quarta|quinta|sexta|feira|sabado|domingo)\b/g, ' ')
     .replace(/[\s,.\-–—|•·:()]+/g, '');
   return resto.length === 0;
@@ -405,7 +406,7 @@ const esc = (s) =>
 
 // Marcas no texto integral (vêm da transcrição; dá para escrever à mão também):
 //   **Intertítulo**     parágrafo inteiro em negrito
-//   _Legenda da foto_   parágrafo inteiro em itálico
+//   _Legenda_           parágrafo inteiro em itálico (legenda de tabela)
 //   ⟦trecho⟧            o OCR teve dúvida: aparece em amarelo até alguém conferir
 const INTERTITULO = /^\*\*(.+)\*\*$/s;
 const LEGENDA = /^_(.+)_$/s;

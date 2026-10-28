@@ -723,7 +723,6 @@ async function main() {
     // Texto integral da matéria de testes/paginas/conjur.html, como a página publica.
     const TEXTO_CONJUR = [
       'Por 3 votos a 2, a 2ª Turma manteve a cobrança e afastou a multa de R$ 1.234.567,89 aplicada à distribuidora.',
-      '_Ministra Cármen Lúcia durante a sessão da 2ª Turma | Foto: Fellipe Sampaio/SCO/STF_',
       'A 2ª Turma do Supremo Tribunal Federal decidiu, nesta segunda-feira (27/10), que a alíquota do ICMS sobre energia elétrica pode chegar a 20,5% nos estados que aprovaram lei específica até 31/12/2025. O placar foi de 3 votos a 2.',
       'O caso envolvia a Distribuidora Maranhense de Energia S.A., autuada em R$ 1.234.567,89 pela Secretaria de Fazenda (Sefaz-MA). A empresa sustentava que a alíquota de 17% era o teto previsto no artigo 155, § 2º, inciso III, da Constituição, e que a diferença de 3,5 pontos percentuais violaria o princípio da seletividade.',
       '**Entenda o caso**',
@@ -733,6 +732,25 @@ async function main() {
       '“A seletividade não é um teto rígido”, escreveu o ministro André Mendonça no voto vencedor.',
       'Ficaram vencidos os ministros Edson Fachin e Dias Toffoli, para quem a cobrança acima de 17% exige lei complementar nova. A decisão vale a partir de 1º/1/2027.',
       'RE 1.234.567\nClique aqui para ler o acórdão',
+    ].join('\n\n');
+    // testes/paginas/valor.html: legendas e créditos de foto, chamadas e links de
+    // navegação saem; as armadilhas ("mais recente", "Foto:" no meio do texto,
+    // itálico que é da matéria, tabela com legenda, link do acórdão) ficam.
+    const TEXTO_VALOR = [
+      'Decisão vale para lucros apurados até 2025 e pode ser estendida a outras empresas do grupo',
+      'A 4ª Turma do Tribunal Regional Federal da 3ª Região (TRF-3) afastou a retenção de 10% de Imposto de Renda na fonte (IRRF) sobre os dividendos distribuídos por uma holding a seus sócios, prevista na Lei nº 15.270, de 2025. A decisão vale para os lucros apurados até 31/12/2025.',
+      'Segundo o relator, a cobrança sobre a parcela que excede R$ 50 mil por mês viola a anterioridade. A decisão mais recente do STF sobre o tema, de 2024, ainda não foi publicada; a próxima sessão está marcada para 5/11.',
+      '**Destaque da decisão**',
+      'O advogado Alessandro Prado, do escritório Prado Advogados, afirma que a decisão pode ser estendida às demais empresas do grupo. “O ponto mais frágil da lei é a retenção sobre lucros já apurados”, diz.',
+      '“A lei não pode alcançar lucros de exercícios encerrados”, escreveu a relatora.',
+      'Atualização: a Fazenda Nacional informou que vai recorrer.',
+      'A Receita Federal estima que a retenção renda R$ 25,2 bilhões por ano. Foto: em 2026, o valor efetivamente arrecadado foi de 12,3% a menos que o previsto.',
+      '“É uma vitória dos contribuintes”, disse o advogado.',
+      'Ano | Retenção\n2025 | 0%\n2026 | 10%',
+      '_Fonte: Receita Federal_',
+      'Leia a parte 1 da série Leia a parte 2 da série',
+      'Clique aqui para ler o acórdão',
+      'Processo 5001234-56.2026.4.03.6100',
     ].join('\n\n');
     if (rodar('transcrição')) try {
       limparDownloads();
@@ -760,15 +778,15 @@ async function main() {
       assert.ok(m2.texto.startsWith('Para a SDI-1, cargo de confiança exige fidúcia especial, o que não ficou provado no caso\n\n'), 'linha fina');
       assert.ok(m2.texto.includes('\n\n**O que estava em jogo**\n\n'), 'intertítulo em negrito no site');
       assert.ok(m2.texto.includes('o valor — R$ 3.150,00 por mês — não basta') && m2.texto.includes('(E-RR-1000123-45.2019.5.02.0011).'));
-      for (const lixo of ['Anúncio', 'Relacionadas', 'Reforma trabalhista completa', 'cookies', 'Assine']) assert.ok(!m2.texto.includes(lixo), lixo);
-      for (const lixo of ['Leia também', 'Publicidade', 'Mais lidas', 'Comentários', 'Compartilhar', 'newsletter', 'Revista Consultor', 'ICMS STF', 'TRIBUTÁRIO']) {
+      for (const lixo of ['Anúncio', 'Relacionadas', 'Reforma trabalhista completa', 'cookies', 'Assine', 'assine', 'JOTA Principal']) assert.ok(!m2.texto.includes(lixo), lixo);
+      for (const lixo of ['Leia também', 'Publicidade', 'Mais lidas', 'Comentários', 'Compartilhar', 'newsletter', 'Revista Consultor', 'ICMS STF', 'TRIBUTÁRIO', 'Cármen Lúcia durante', 'Sampaio']) {
         assert.ok(!m1.texto.includes(lixo), lixo);
       }
 
-      // O e-mail da área: intertítulo em negrito, legenda em itálico; copiar leva o HTML.
+      // O e-mail da área: intertítulo em negrito, sem a legenda da foto; copiar leva o HTML.
       const previa = await noticias.$eval('.email[data-area="Tributário"] .previa', (c) => c.shadowRoot.innerHTML);
       assert.match(previa, /font-weight:bold; margin:12pt 0 6pt 0;">Entenda o caso<\/p>/);
-      assert.match(previa, /font-style:italic; margin:0 0 8pt 0;">Ministra Cármen Lúcia durante a sessão da 2ª Turma/);
+      assert.doesNotMatch(previa, /Cármen Lúcia durante a sessão|Fellipe Sampaio/);
       assert.match(previa, /alíquota do ICMS sobre energia elétrica pode chegar a 20,5% nos estados/);
       if (process.env.SALVAR_PRINTS) {
         await noticias.setViewportSize({ width: 1280, height: 1600 });
@@ -783,9 +801,21 @@ async function main() {
       assert.equal(m3.titulo, 'Juíza reconhece créditos de PIS e Cofins sobre fretes de exportação');
       assert.equal(m3.autor, 'Mariana Duarte');
       assert.ok(!/Spacca|TRIBUTÁRIO/.test(m3.texto), 'crédito da ilustração e chapéu fora');
+
+      // Valor: fotos com legenda e crédito, chamadas, "Mais recente / Próxima" e o quadro do Google saem; o resto fica igual.
+      const alvo4 = await abrirAlvo('valor.html');
+      await controle.evaluate((tabId) => chrome.runtime.sendMessage({ tipo: 'iniciar', tabId, pasta: 'x', opcoes: {} }), alvo4.tabId);
+      const m4 = (await esperarMaterias(noticias, 4))[3];
+      assert.deepEqual(
+        { titulo: m4.titulo, autor: m4.autor, data: m4.data, area: m4.area },
+        { titulo: 'TRF-3 afasta retenção de 10% de IR sobre dividendos', autor: 'Beatriz Lima e Arthur Prado', data: '2026-10-23', area: 'Tributário' },
+      );
+      assert.equal(m4.texto, TEXTO_VALOR, 'texto integral exato, sem legenda, crédito, chamada nem navegação');
+      const previa4 = await noticias.$eval('.email[data-area="Tributário"] .previa', (c) => c.shadowRoot.innerHTML);
+      assert.match(previa4, /font-style:italic; margin:0 0 8pt 0;">Fonte: Receita Federal<\/p>/, 'legenda de tabela em itálico');
       assert.deepEqual(erros, []);
-      console.log('ok   transcrição: texto exato da página no e-mail (ConJur, JOTA), sem anúncios e menus; "os dois" com ZIP');
-      for (const p of [popup, alvo.pagina, alvo2.pagina, alvo3.pagina]) await p.close();
+      console.log('ok   transcrição: texto exato da página no e-mail (ConJur, JOTA, Valor), sem legendas de foto, anúncios, chamadas e menus; "os dois" com ZIP');
+      for (const p of [popup, alvo.pagina, alvo2.pagina, alvo3.pagina, alvo4.pagina]) await p.close();
       for (const p of contexto.pages().filter((x) => x.url().includes('/resultado.html'))) await p.close();
     } catch (e) {
       falhas.push('transcrição');

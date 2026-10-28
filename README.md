@@ -25,7 +25,9 @@ Tudo fica no mesmo ícone: clique nele e escolha a aba (**Captura** ou **Notíci
 
 A extensão não “lê” a imagem da tela: ela pega o texto que o próprio site manda para o navegador, letra por letra. **20,5%**, **R$ 1.234.567,89**, **§ 2º**, **2ª Turma**, **31/12/2025** e **nº 0801234-56.2025.8.10.0001** chegam exatamente assim, sem trocar vírgula por ponto nem “ª” por “º”. Nada é resumido, reescrito nem completado.
 
-Para achar o corpo da matéria e deixar de fora **menus, anúncios, banners, barras laterais, “Leia também”, botões de compartilhar, newsletter, comentários e rodapé**, ela usa o Readability (o mesmo do “Modo de leitura” do Firefox) e filtros próprios para os portais brasileiros. Ficam **intertítulos** (em negrito no e-mail), **listas**, **citações** e **legendas** de foto (em itálico); créditos soltos como “Divulgação” saem. A linha fina (o texto logo abaixo do título) entra como primeiro parágrafo, e a linha “Por Fulano | data” vira o autor e a data da matéria.
+Para achar o corpo da matéria e deixar de fora **menus, anúncios, banners, barras laterais, “Leia também”, botões de compartilhar, newsletter, comentários e rodapé**, ela usa o Readability (o mesmo do “Modo de leitura” do Firefox) e filtros próprios para os portais brasileiros. Ficam **intertítulos** (em negrito no e-mail), **listas**, **tabelas** e **citações**. A linha fina (o texto logo abaixo do título) entra como primeiro parágrafo, e a assinatura (“Por Fulano | data”) vira o autor e a data da matéria.
+
+**Fotos e vídeos saem com a legenda e o crédito deles** (“Foto: Fulano”, “Reprodução / YouTube”, “(Imagem: Arte Migalhas)”). Também saem as chamadas do site no meio do texto (“assine a newsletter”, “siga no WhatsApp”, “teste grátis”) e os links de navegação, como “Mais recente / Próxima”. Isso é feito **pela estrutura da página** (o quadro da foto, a linha colada nela, a caixa da chamada), **nunca por palavra**: “mais recente”, “próxima” ou “foto” no meio de um parágrafo continuam lá. Bloco com link para o documento do caso (acórdão em PDF, site do tribunal) nunca é tirado.
 
 ### Quando entra o OCR
 

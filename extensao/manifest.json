@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Ferramentas Fanjas",
   "short_name": "Fanjas",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "description": "Ferramentas do escritório: transcrição das matérias direto para o e-mail de notícias jurídicas (texto integral, sem resumo), prints com rolagem em ZIP numerado e OCR embutido.",
   "minimum_chrome_version": "116",
   "permissions": ["activeTab", "scripting", "storage", "unlimitedStorage", "clipboardWrite", "clipboardRead", "tabs", "downloads"],

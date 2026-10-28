@@ -3,9 +3,10 @@
 // matéria é achado com o Readability da Mozilla (o do "Modo de leitura" do
 // Firefox), que deixa de fora menus, anúncios, barras laterais e rodapés; por
 // cima dele saem os blocos de "Leia também", publicidade e afins dos sites
-// brasileiros. Devolve os blocos na ordem de leitura (intertítulos,
-// parágrafos, listas, citações, legendas), os dados da matéria e onde ela fica
-// na tela (para o OCR, quando a página não tem o texto).
+// brasileiros, e as fotos com a legenda e o crédito delas. Devolve os blocos
+// na ordem de leitura (intertítulos, parágrafos, listas, citações, tabelas),
+// os dados da matéria e onde ela fica na tela (para o OCR, quando a página não
+// tem o texto).
 // Injetado pela extensão depois de terceiros/readability/Readability.js.
 (() => {
   if (globalThis.__clippingLeitor) return;
@@ -30,6 +31,19 @@
   const CHAMADA = /^(leia|veja) (tambem|mais)\s*[:–-]/;
   const TITULO_LIXO = /^(leia (tambem|mais)|veja (tambem|mais)|saiba mais|mais lidas|relacionadas|noticias relacionadas|ultimas noticias)\b/;
   const CREDITO = /^(foto|fotos|imagem|imagens|ilustra[cç][aã]o|cr[eé]dito|reprodu[cç][aã]o|divulga[cç][aã]o|arquivo)s?\b\s*[:/–-]?/i;
+  // Chamadas do site no meio da matéria ("assine", "siga no WhatsApp", "Próxima
+  // matéria"…), pela classe ou id.
+  const PROMO_CLASSE = /(^|[\s_-])(cta|promo\w*|passador\w*|paginac\w*|pagination|post-?navigation|disclosure\w*)([\s_-]|$)/i;
+  // Legenda e crédito de foto, pela classe (só saem se estão ao lado de uma foto).
+  const LEGENDA_CLASSE = /caption|legenda|(^|[\s_-])(credit\w*|credito\w*|img-info|image-info|foto-info|photo-info)([\s_-]|$)/i;
+  // Linha de crédito colada numa foto que não tem classe nenhuma: começa com o
+  // crédito ("Foto: Fulano", "Reprodução / YouTube") ou termina nele ("… — Foto: Fulano", "… (Imagem: Arte)").
+  const LINHA_DE_CREDITO =
+    /^\(?\s*(fotos?|imagens?|ilustra[cç][aã]o|arte|cr[eé]ditos?|reprodu[cç][aã]o|divulga[cç][aã]o)\s*([:/–—-]|$)|[—–|-]\s*(fotos?|imagens?|cr[eé]ditos?)\s*:[^.;:]{1,80}$|\(\s*(fotos?|imagens?|cr[eé]ditos?)\s*:[^()]{1,80}\)\s*$/i;
+  const MIDIA = 'img, picture, video, iframe, svg, canvas, embed, object';
+  // Link para o documento do caso (decisão em PDF, site do tribunal ou do
+  // governo): o bloco com um desses é da matéria ("Clique aqui para ler a decisão").
+  const DOCUMENTO = /\.(pdf|docx?|odt|rtf)([?#]|$)|\/wp-content\/uploads\/|\/dl\/|download|\.jus\.br|\.gov\.br|\.leg\.br|\.mp\.br|\.def\.br|planalto/i;
 
   const PULAR = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE', 'BUTTON', 'NAV', 'ASIDE', 'IMG', 'PICTURE', 'SVG', 'VIDEO', 'AUDIO', 'IFRAME', 'FORM', 'INPUT', 'SELECT', 'TEXTAREA', 'CANVAS', 'OBJECT', 'EMBED', 'SOURCE', 'MAP']);
   const CABECALHO = /^H[1-6]$/;
@@ -76,28 +90,142 @@
       }
     }
     for (const c of fora) c.remove();
+    const hrefDe = (a) => mapa.get(a)?.href || a.getAttribute('href') || '';
+    const levaADocumento = (el) => [...el.querySelectorAll('a[href]'), ...(el.matches('a[href]') ? [el] : [])].some((a) => DOCUMENTO.test(hrefDe(a)));
     // Anúncios e caixas do site saem antes do Readability, que às vezes troca
     // o bloco por um <p> sem a classe. Só blocos pequenos: uma matéria com
     // classe infeliz ("has-share") continua.
     for (const el of [...copia.body.querySelectorAll('*')]) {
       if (!el.isConnected) continue;
       const anuncio = /^div-gpt-ad|^google_ads/i.test(el.id) || el.matches('ins.adsbygoogle, [data-ad], [data-ad-slot], [data-google-query-id]');
-      if (anuncio || (ehLixo(el, 600) && !el.querySelector('h1') && el.querySelectorAll('p').length < 3)) el.remove();
+      const chamada = PROMO_CLASSE.test(classeDe(el)) && tamanho(el) < 400 && !el.querySelector('h1') && !levaADocumento(el);
+      if (anuncio || chamada || (ehLixo(el, 600) && !el.querySelector('h1') && el.querySelectorAll('p').length < 3)) el.remove();
+    }
+    const quadros = tirarFotos(copia, mapa, levaADocumento);
+    // Links soltos para outras matérias do site ("Mais recente", "Próxima: …"),
+    // sem nenhum texto fora deles. Lista e parágrafo não entram nessa conta.
+    const endereco = (doc.URL || location.href).replace(/[?#].*$/, '');
+    const host = (h) => h.replace(/^www\./, '');
+    const outraMateria = (href) => {
+      try {
+        const u = new URL(href, endereco);
+        return host(u.hostname) === host(new URL(endereco).hostname) && u.href.replace(/[?#].*$/, '') !== endereco && !DOCUMENTO.test(u.href);
+      } catch {
+        return false;
+      }
+    };
+    for (const el of [...copia.body.querySelectorAll('div, section, footer, header')]) {
+      if (!el.isConnected || el.textContent.length > 3000) continue;
+      const t = tamanho(el);
+      if (!t || t > 300) continue;
+      const links = [...el.querySelectorAll('a[href]')];
+      if (links.length < 2 || links.length > 6) continue;
+      if (limpar(links.map((a) => a.textContent).join(' ')).length >= t - 2 && links.every((a) => outraMateria(hrefDe(a)))) el.remove();
     }
     // Aviso de cookies aberto costuma marcar a página inteira como "aria-hidden":
     // num bloco com muito texto, isso não quer dizer que ele está escondido.
     for (const el of copia.querySelectorAll('[aria-hidden="true"]')) if (el.textContent.length > 1000) el.removeAttribute('aria-hidden');
-    return { copia, mapa };
+    return { copia, mapa, quadros };
+  }
+
+  const classeDe = (el) => `${typeof el.className === 'string' ? el.className : el.getAttribute?.('class') || ''} ${el.id || ''}`;
+  const tamanho = (el) => limpar(el.textContent).length;
+
+  // Fotos e vídeos com a legenda e o crédito deles: não entram no e-mail. Pela
+  // estrutura da página (o quadro da foto, a legenda colada nela), nunca por
+  // palavra. Devolve os quadros tirados (na página), para o OCR também pular.
+  function tirarFotos(copia, mapa, levaADocumento) {
+    // foto ou vídeo de verdade, não ícone: pelo tamanho na tela ou no código
+    const grande = (m) => {
+      const r = retanguloDe(mapa.get(m));
+      if (r) return r.width >= 100 && r.height >= 60;
+      const w = parseFloat(m.getAttribute('width'));
+      const h = parseFloat(m.getAttribute('height'));
+      if (w || h) return (w || 100) >= 100 && (h || 60) >= 60;
+      return m.tagName.toLowerCase() !== 'svg';
+    };
+    const temMidia = (el) => (el.matches(MIDIA) && grande(el)) || [...el.querySelectorAll(MIDIA)].some(grande);
+    const soMidia = (el) => tamanho(el) === 0 && temMidia(el);
+    // o elemento de antes e o de depois, pulando os vazios (<p></p>)
+    const vizinho = (el, lado) => {
+      let v = el[lado];
+      while (v && tamanho(v) === 0 && !temMidia(v)) v = v[lado];
+      return v;
+    };
+    const coladoNaFoto = (el) => [vizinho(el, 'previousElementSibling'), vizinho(el, 'nextElementSibling')].some((v) => v && soMidia(v));
+    // a legenda (ou o bloco pequeno em volta dela) está ao lado da foto ou com ela dentro
+    const juntoDaFoto = (el) => {
+      if (temMidia(el)) return true;
+      for (let no = el, nivel = 0; no && no !== copia.body && nivel < 3; no = no.parentElement, nivel++) {
+        if (nivel > 0 && tamanho(no) > 600) break;
+        if ((nivel > 0 && temMidia(no)) || coladoNaFoto(no)) return true;
+      }
+      return false;
+    };
+    const italico = (el) => {
+      const partes = [...el.querySelectorAll('em, i, small')].filter((x) => !x.parentElement.closest('em, i, small') || !el.contains(x.parentElement.closest('em, i, small')));
+      return limpar(partes.map((x) => x.textContent).join(' ')).length >= tamanho(el) - 1;
+    };
+    const quadros = [];
+    // decide tudo antes de tirar: o parágrafo que vem depois de uma legenda
+    // tirada não passa a contar como "colado na foto"
+    const tirar = (lista) => {
+      for (const el of lista) {
+        if (!el.isConnected) continue;
+        quadros.push(mapa.get(el));
+        el.remove();
+      }
+    };
+    // <figure> com foto ou vídeo: a foto, a legenda e o crédito saem juntos
+    // (figure sem foto, como a de uma tabela, fica)
+    const figuras = [...copia.body.querySelectorAll('figure')].filter(temMidia);
+    tirar(figuras.flatMap((fig) => (tamanho(fig) <= 600 ? [fig] : [...fig.querySelectorAll('figcaption')])));
+    // legenda e crédito pela classe ("wp-caption-text", "img-legenda", "image-credit"…), ao lado de uma foto
+    const pelaClasse = [...copia.body.querySelectorAll('[class], [id]')].filter(
+      (el) => LEGENDA_CLASSE.test(classeDe(el)) && tamanho(el) <= 400 && !levaADocumento(el) && juntoDaFoto(el),
+    );
+    // linha sem classe colada na foto: crédito ("Foto: …") antes ou depois dela,
+    // ou a linha toda em itálico logo depois dela (ou com a foto dentro). Uma
+    // citação em itálico (entre aspas, recuada ou em <blockquote>) é da matéria.
+    const citacao = (el, t) => /^["“«'‘]/.test(t) || Boolean(el.closest('blockquote')) || /(padding|margin)-left\s*:\s*[1-9]/i.test(el.getAttribute('style') || '');
+    const soltas = [...copia.body.querySelectorAll('p, div, center')].filter((el) => {
+      if (el.textContent.length > 2000) return false;
+      const t = limpar(el.textContent);
+      if (!t || t.length > 200 || levaADocumento(el)) return false;
+      const antes = vizinho(el, 'previousElementSibling');
+      const depoisDaFoto = temMidia(el) || Boolean(antes && soMidia(antes));
+      return (LINHA_DE_CREDITO.test(t) && (depoisDaFoto || coladoNaFoto(el))) || (depoisDaFoto && italico(el) && !citacao(el, t));
+    });
+    tirar([...pelaClasse, ...soltas]);
+    return quadros.filter(Boolean);
   }
 
 
   // ---------------------------------------------------------------- blocos
 
+  // Quebra de linha no código da página não é quebra no texto (só <br> e o
+  // fim de um bloco são), a não ser em trecho que a página mostra assim (<pre>).
+  let mapaAtual = null;
+  const preformatado = new WeakMap();
+  function textoDe(no) {
+    const t = no.nodeValue;
+    if (!/[\r\n]/.test(t) || no.parentElement?.closest('pre, textarea')) return t;
+    const pai = mapaAtual?.get(no)?.parentElement;
+    if (pai && !preformatado.has(pai)) {
+      try {
+        preformatado.set(pai, /^(pre|pre-wrap|pre-line|break-spaces)$/.test(getComputedStyle(pai).whiteSpace));
+      } catch {
+        preformatado.set(pai, false); // sem estilo: fica como espaço
+      }
+    }
+    return pai && preformatado.get(pai) ? t : t.replace(/[\r\n]+/g, ' ');
+  }
+
   // <sup>o</sup> e <sup>a</sup> são o "º" e o "ª" escritos de outro jeito.
   // marcar(nó) recebe cada nó de texto usado (para medir o bloco na página).
   function textoInline(no, saida, marcar) {
     if (no.nodeType === Node.TEXT_NODE) {
-      saida.push(no.nodeValue);
+      saida.push(textoDe(no));
       if (no.nodeValue.trim()) marcar?.(no);
       return;
     }
@@ -154,7 +282,7 @@
     const visitar = (no, contexto) => {
       if (no.nodeType === Node.TEXT_NODE) {
         if (!no.nodeValue.trim() && !inline.length) return;
-        inline.push(no.nodeValue);
+        inline.push(textoDe(no));
         if (no.nodeValue.trim()) marcar(no);
         return;
       }
@@ -279,10 +407,12 @@
     return '';
   };
 
+  // "Katarina Moraes, Autor no JOTA" → "Katarina Moraes"
+  const semRotulo = (nome) => nome.replace(/,?\s+autora?\s+(n[oa]|em|d[oa])\s+.+$/i, '');
   const nomes = (autor) =>
     []
       .concat(autor || [])
-      .map((a) => limpar(typeof a === 'string' ? a : a?.name))
+      .map((a) => semRotulo(limpar(typeof a === 'string' ? a : a?.name)))
       .filter((a) => a && !/^https?:/i.test(a));
 
   function juntarNomes(lista) {
@@ -291,7 +421,7 @@
   }
 
   const limparAutor = (t) =>
-    limpar(t)
+    semRotulo(limpar(t))
       .replace(/^(por|by)\s*:?\s+/i, '')
       .replace(/\s+[|–—]\s+.*$/, '')
       .replace(/,?\s+\d{1,2}[/.]\d{1,2}[/.]\d{2,4}.*$/, '')
@@ -357,7 +487,7 @@
   function lerDocumento(doc, config) {
     const win = doc.defaultView || window;
     const escolhido = config?.elemento || null;
-    let { copia, mapa } = copiar(doc);
+    let { copia, mapa, quadros } = copiar(doc);
     const ld = jsonLd(doc);
     const copiaDe = (vivo) => {
       for (const [clone, v] of mapa) if (v === vivo) return clone;
@@ -383,10 +513,11 @@
     if (!raiz || limpar(raiz.textContent).length < 200) {
       // Sem matéria reconhecida: o bloco da matéria (article, main ou a área
       // escolhida), numa cópia nova (o Readability desmonta a que recebe).
-      ({ copia, mapa } = copiar(doc));
+      ({ copia, mapa, quadros } = copiar(doc));
       raiz = (escolhido && copiaDe(escolhido)) || copia.querySelector('article, [itemprop="articleBody"], main, [role="main"]') || copia.body;
       metodo = 'simples';
     }
+    mapaAtual = mapa;
     const blocos = filtrar(blocosDe(raiz));
 
     // onde cada bloco está na página: do primeiro ao último trecho de texto dele
@@ -420,6 +551,18 @@
         const r = retanguloDe(mapa.get(img));
         if (r && r.width > 40 && r.height > 40) imagens.push({ x: r.left + desl.x, y: r.top + desl.y + rolagem.y, w: r.width, h: r.height });
       }
+    }
+    // e as fotos tiradas com a legenda e o crédito
+    for (const vivo of quadros) {
+      const r = retanguloDe(vivo);
+      const fixo = (() => {
+        try {
+          return /fixed|sticky/.test(getComputedStyle(vivo).position);
+        } catch {
+          return true;
+        }
+      })();
+      if (r && !fixo && r.width > 40 && r.height > 20) imagens.push({ x: r.left + desl.x, y: r.top + desl.y + rolagem.y, w: r.width, h: r.height });
     }
 
     // Quase sem texto: a matéria deve estar numa imagem. A caixa passa a ser o
@@ -471,7 +614,10 @@
     let subtitulo = '';
     let caixaSubtitulo = null;
     if (h1) {
-      let el = h1.nextElementSibling;
+      // o h1 pode estar sozinho num bloco (<div class="title"><h1>): a linha fina vem depois do bloco
+      let topo = h1;
+      while (topo.parentElement && topo.parentElement !== doc.body && limpar(topo.parentElement.textContent) === limpar(h1.textContent)) topo = topo.parentElement;
+      let el = topo.nextElementSibling;
       for (let passo = 0; el && passo < 3 && !subtitulo; passo++, el = el.nextElementSibling) {
         const t = limpar(el.innerText ?? el.textContent);
         const classe = typeof el.className === 'string' ? el.className : '';
@@ -485,7 +631,18 @@
       }
     }
 
-    const autor = juntarNomes(nomes(ld.author)) || limparAutor(meta(doc, 'author', 'article:author', 'dc.creator', 'parsely-author', 'sailthru.author')) || limparAutor(leitura?.byline);
+    // assinatura entre o título e o texto ("Por <address>Fulana</address> e <address>Beltrano</address>")
+    const assinatura = () => {
+      if (!h1) return '';
+      // antes do primeiro parágrafo de verdade (a linha fina pode vir antes da assinatura)
+      const inicio = mapa.get(blocos.find((x) => x.no && x.tipo === 'paragrafo' && (x.texto.match(/\S+/g) || []).length >= 15)?.no);
+      const lista = [...doc.querySelectorAll('[itemprop="author"], [rel="author"], address')]
+        .filter((el) => visivel(el) && h1.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING && (!inicio || el.compareDocumentPosition(inicio) & Node.DOCUMENT_POSITION_FOLLOWING))
+        .map((el) => limparAutor(el.getAttribute('content') || el.innerText || el.textContent))
+        .filter((t) => t && t.length <= 60 && !/^https?:|@/.test(t));
+      return juntarNomes(lista);
+    };
+    const autor = juntarNomes(nomes(ld.author)) || limparAutor(meta(doc, 'author', 'article:author', 'dc.creator', 'parsely-author', 'sailthru.author')) || limparAutor(leitura?.byline) || assinatura();
     const canonico = doc.querySelector('link[rel="canonical"]')?.href || '';
     const endereco = (() => {
       try {

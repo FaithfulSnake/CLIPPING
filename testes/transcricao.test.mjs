@@ -73,6 +73,19 @@ test('matéria da página: dados do site, sem linha de autor, crédito de foto n
   assert.ok(outra.texto.startsWith('Por 3 votos a 2, a 2ª Turma manteve a cobrança.\n\n'));
 });
 
+test('linha fina marcada como intertítulo vira parágrafo; o site como autor não se repete', () => {
+  const base = { titulo: 'Justiça afasta retenção de 10% de IR sobre dividendos', blocos: [{ tipo: 'intertitulo', texto: 'Uma das decisões é coletiva' }, { tipo: 'paragrafo', texto: PARAGRAFO }] };
+  const m = materiaDaLeitura({ ...base, subtitulo: 'Uma das decisões é coletiva', autor: 'Valor', endereco: 'https://valor.globo.com/legislacao/noticia/x.ghtml' });
+  assert.equal(m.texto, `Uma das decisões é coletiva\n\n${PARAGRAFO}`);
+  assert.equal(m.autor, 'Valor Econômico');
+  assert.equal(materiaDaLeitura({ ...base, autor: 'Migalhas', endereco: 'https://www.migalhas.com.br/quentes/1/x' }).autor, 'Migalhas');
+  assert.equal(materiaDaLeitura({ ...base, autor: 'Beatriz Lima e Arthur Prado', endereco: 'https://valor.globo.com/x' }).autor, 'Beatriz Lima e Arthur Prado (Valor Econômico)');
+  // sem a linha fina, o intertítulo continua intertítulo
+  assert.ok(materiaDaLeitura(base).texto.startsWith('**Uma das decisões é coletiva**'));
+  // "23/10/2026 05h00 Atualizado há 2 dias" é linha de data, não texto
+  assert.equal(materiaDaLeitura({ ...base, blocos: [{ tipo: 'paragrafo', texto: '23/10/2026 05h00 Atualizado há 2 dias' }, ...base.blocos.slice(1)] }).texto, PARAGRAFO);
+});
+
 test('quando é preciso ler os prints com OCR', () => {
   const blocos = (texto) => ({ ok: true, blocos: [{ tipo: 'paragrafo', texto }] });
   assert.equal(motivoParaOcr(blocos(PARAGRAFO)), '');
@@ -124,12 +137,13 @@ test('parágrafos do OCR pelo espaço entre as linhas', () => {
     linha(30, 'tabela do ICMS. A alíquota subiu.'),
     linha(84, 'Segundo o órgão, a arrecadação deve'),
     linha(114, 'crescer. O contribuinte que pagar até a trans-'),
-    linha(144, 'ferência terá desconto.', 300),
-    linha(198, 'Último parágrafo.', 200),
+    linha(144, 'ferência terá desconto da Sefaz-', 700),
+    linha(174, 'MA.', 100),
+    linha(228, 'Último parágrafo.', 200),
   ]);
   assert.equal(
     texto,
-    'A Secretaria de Fazenda publicou a nova tabela do ICMS. A alíquota subiu.\n\nSegundo o órgão, a arrecadação deve crescer. O contribuinte que pagar até a ⟦transferência⟧ terá desconto.\n\nÚltimo parágrafo.',
+    'A Secretaria de Fazenda publicou a nova tabela do ICMS. A alíquota subiu.\n\nSegundo o órgão, a arrecadação deve crescer. O contribuinte que pagar até a ⟦transferência⟧ terá desconto da ⟦Sefaz-MA.⟧\n\nÚltimo parágrafo.',
   );
 });
 

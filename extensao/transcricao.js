@@ -70,9 +70,13 @@ export function motivoParaOcr(leitura) {
   return '';
 }
 
+// "Fulano" → "Fulano (JOTA)"; o próprio site como autor fica só com o nome
+// dele ("Migalhas", "Valor" → "Valor Econômico").
 function completarAutor(autor, link) {
   const fonte = fonteDoLink(link);
-  return autor && fonte && !autor.includes('(') ? `${autor} (${fonte})` : autor;
+  if (!autor || !fonte || autor.includes('(')) return autor;
+  if (normalizar(fonte).startsWith(normalizar(autor))) return fonte;
+  return `${autor} (${fonte})`;
 }
 
 function montarMateria({ titulo, autor, link, data, texto, origem, transcricao }) {
@@ -101,10 +105,11 @@ export function materiaDaLeitura(leitura, transcricao = { tipo: 'pagina' }) {
   }
   // Legendas e linhas que são só crédito de foto ou botão do site.
   const corpo = blocos.filter((b) => !linhaDeLixo(b.texto));
-  // Linha fina logo abaixo do título, se o corpo não começa com ela.
-  if (leitura.subtitulo && !corpo.slice(0, 2).some((b) => mesmoTexto(b.texto, leitura.subtitulo))) {
-    corpo.unshift({ tipo: 'paragrafo', texto: leitura.subtitulo });
-  }
+  // Linha fina logo abaixo do título, se o corpo não começa com ela; ela é um
+  // parágrafo (o site pode marcá-la como intertítulo, em <h2>).
+  const fina = leitura.subtitulo ? corpo.slice(0, 2).findIndex((b) => mesmoTexto(b.texto, leitura.subtitulo)) : -1;
+  if (fina >= 0) corpo[fina] = { ...corpo[fina], tipo: 'paragrafo' };
+  else if (leitura.subtitulo) corpo.unshift({ tipo: 'paragrafo', texto: leitura.subtitulo });
   return montarMateria({
     titulo: limparTitulo(leitura.titulo || leitura.tituloPagina || ''),
     autor,
@@ -241,16 +246,23 @@ export function textoDoOcr(linhas) {
   return paragrafos.map(juntarTextos).join('\n\n');
 }
 
-// Linhas de um parágrafo → uma linha só (palavra quebrada no fim da linha é
-// juntada e marcada para conferir).
+// Linhas de um parágrafo → uma linha só. Palavra quebrada no fim da linha é
+// juntada e marcada para conferir: "trans-" + "ferência" perde o hífen;
+// "Sefaz-" + "MA" (o hífen é da palavra) fica com ele.
 function juntarTextos(textos) {
   return textos.reduce((junto, linha) => {
     if (!junto) return linha;
-    const quebra = junto.match(/(\S+)-$/);
-    if (quebra && /^\p{Ll}/u.test(linha)) {
-      const [resto, ...depois] = linha.split(' ');
-      const palavra = `${quebra[1]}${resto}`.replace(/[⟦⟧]/g, '');
-      return [junto.slice(0, -quebra[0].length) + `⟦${palavra}⟧`, ...depois].join(' ');
+    // (a palavra de antes e a de depois podem já estar dentro de um trecho marcado)
+    const quebra = junto.match(/(\S+)-(⟧?)$/);
+    const marcada = linha.startsWith('⟦');
+    const corpo = marcada ? linha.slice(1) : linha;
+    if (quebra && /^[\p{L}\d]/u.test(corpo)) {
+      const [primeira, ...depois] = corpo.split(' ');
+      const palavra = `${quebra[1]}${/^\p{Ll}/u.test(corpo) ? '' : '-'}${primeira}`.replace(/[⟦⟧]/g, '');
+      const abertoAntes = quebra[2] && !quebra[1].startsWith('⟦');
+      let seguinte = depois.join(' ');
+      if (marcada && !primeira.endsWith('⟧') && seguinte) seguinte = `⟦${seguinte}`;
+      return [junto.slice(0, -quebra[0].length) + (abertoAntes ? `${palavra}⟧` : `⟦${palavra}⟧`), seguinte].filter(Boolean).join(' ');
     }
     return `${junto} ${linha}`;
   }, '');

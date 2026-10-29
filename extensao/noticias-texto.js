@@ -216,6 +216,15 @@ export function fonteDoLink(link) {
   }
 }
 
+// "Fulano" → "Fulano (JOTA)"; o próprio site como autor fica só com o nome
+// dele ("Migalhas", "Valor" → "Valor Econômico").
+export function autorComFonte(autor, link) {
+  const fonte = fonteDoLink(link);
+  if (!autor || !fonte || autor.includes('(')) return autor;
+  if (normalizar(fonte).startsWith(normalizar(autor))) return fonte;
+  return `${autor} (${fonte})`;
+}
+
 // Endereço sozinho (o usuário colou só o link da matéria), ou ''.
 export function linkSozinho(texto) {
   return String(texto ?? '').trim().match(SO_URL)?.[1] || '';
@@ -278,6 +287,8 @@ export function interpretarMateria(textoBruto, origem = '') {
   };
 
   const naoVazias = linhas.flatMap((l, i) => (l ? [[l, i]] : []));
+  // "Fonte: <endereço>" é o link; "Fonte: Agência Brasil", sem endereço, é da matéria.
+  const ehRotulo = (linha) => ROTULO.test(linha) && (!/^fonte\s*:/i.test(linha) || URL_NO_TEXTO.test(linha));
 
   // Cabeçalho: as primeiras linhas curtas, antes do primeiro parágrafo longo.
   const cabecalho = [];
@@ -286,7 +297,7 @@ export function interpretarMateria(textoBruto, origem = '') {
     cabecalho.push(par);
   }
   const tipos = cabecalho.map(([linha]) =>
-    ROTULO.test(linha) ? 'rotulo' : SO_URL.test(linha) ? 'url' : autorDaLinha(linha) ? 'autor' : linhaSoDeData(linha) ? 'data' : 'texto',
+    ehRotulo(linha) ? 'rotulo' : SO_URL.test(linha) ? 'url' : autorDaLinha(linha) ? 'autor' : linhaSoDeData(linha) ? 'data' : 'texto',
   );
   // Título: a 1ª linha de texto que não pareça "chapéu" (OPINIÃO, Notícias…);
   // os chapéus antes dele saem do texto.
@@ -326,7 +337,7 @@ export function interpretarMateria(textoBruto, origem = '') {
     if (url) {
       m.link ||= url[1];
       usada[i] = true;
-    } else if (/^(link(\s+de\s+acesso)?|url|fonte)\s*:/i.test(linha) && aplicarRotulo(linha)) {
+    } else if (/^(link(\s+de\s+acesso)?|url|fonte)\s*:/i.test(linha) && ehRotulo(linha) && aplicarRotulo(linha)) {
       usada[i] = true;
     }
   }
@@ -341,8 +352,7 @@ export function interpretarMateria(textoBruto, origem = '') {
   while (corpo.length && !corpo.at(-1)) corpo.pop();
   const texto = corpo.join('\n');
 
-  const fonte = fonteDoLink(m.link);
-  if (m.autor && fonte && !m.autor.includes('(')) m.autor = `${m.autor} (${fonte})`;
+  m.autor = autorComFonte(m.autor, m.link);
 
   const automatica = classificarArea(m.titulo, texto);
   const areaFixa = m.areaRotulo || areaPelaOrigem(origem);

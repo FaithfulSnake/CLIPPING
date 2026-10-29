@@ -10,7 +10,11 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { paginaInstalacao } from './pagina-instalacao.mjs';
 
 const ler = (caminho) => readFileSync(new URL(`../${caminho}`, import.meta.url), 'utf8');
-const semModulos = (codigo) => codigo.replace(/^import\b[\s\S]*?\bfrom\s+['"][^'"]+['"];?\n/gm, '').replace(/^export /gm, '');
+const semModulos = (codigo) =>
+  codigo
+    .replace(/^import\s+['"][^'"]+['"];?\n/gm, '')
+    .replace(/^import\b[\s\S]*?\bfrom\s+['"][^'"]+['"];?\n/gm, '')
+    .replace(/^export /gm, '');
 
 export function gerar() {
   const corpo = [
@@ -48,9 +52,10 @@ export function gerar() {
 function gerarNoticias() {
   const noticias = [
     '// Notícias jurídicas – Ferramentas Fanjas.',
-    '// ARQUIVO GERADO por ferramentas/gerar-script.mjs a partir de extensao/noticias-texto.js, unzip.js, zip.js e noticias.js: não edite à mão.',
+    '// ARQUIVO GERADO por ferramentas/gerar-script.mjs a partir de extensao/limpeza.js, noticias-texto.js, unzip.js, zip.js e noticias.js: não edite à mão.',
     '(() => {',
     "'use strict';",
+    ler('extensao/limpeza.js'),
     semModulos(ler('extensao/noticias-texto.js')),
     semModulos(ler('extensao/unzip.js')),
     semModulos(ler('extensao/zip.js')),

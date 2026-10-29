@@ -1,7 +1,7 @@
 // Transcrição das matérias: monta a matéria do e-mail de notícias a partir do
 // que o leitor achou na página (leitor.js) ou do OCR dos prints, sem resumir,
 // reescrever nem completar nada. Só funções puras (testável no Node).
-import { acharData, autorDaLinha, classificarArea, fonteDoLink, limparTitulo, linhaDeLixo, linhaSoDeData, normalizar } from './noticias-texto.js';
+import { acharData, autorComFonte, autorDaLinha, classificarArea, limparTitulo, linhaDeLixo, linhaSoDeData, normalizar } from './noticias-texto.js';
 
 // ---------------------------------------------------------------- texto da página
 
@@ -70,18 +70,9 @@ export function motivoParaOcr(leitura) {
   return '';
 }
 
-// "Fulano" → "Fulano (JOTA)"; o próprio site como autor fica só com o nome
-// dele ("Migalhas", "Valor" → "Valor Econômico").
-function completarAutor(autor, link) {
-  const fonte = fonteDoLink(link);
-  if (!autor || !fonte || autor.includes('(')) return autor;
-  if (normalizar(fonte).startsWith(normalizar(autor))) return fonte;
-  return `${autor} (${fonte})`;
-}
-
 function montarMateria({ titulo, autor, link, data, texto, origem, transcricao }) {
   const area = classificarArea(titulo, texto);
-  return { titulo, autor: completarAutor(autor, link), link, data, texto, area: area.area, areaConferir: area.duvida, origem, transcricao };
+  return { titulo, autor: autorComFonte(autor, link), link, data, texto, area: area.area, areaConferir: area.duvida, origem, transcricao };
 }
 
 // Leitura da página (leitor.js) → matéria do e-mail.

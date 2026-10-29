@@ -244,7 +244,7 @@ Segue o modelo do escritório (estilos dentro do próprio HTML, que o Outlook pr
 - **data**: a primeira data do cabeçalho ("05/10/2026", "5 de outubro de 2026, 8h05"…);
 - **área**: pelo assunto (termos como ICMS, Carf, CLT, TST, recuperação judicial, sócios…). Quando não dá para ter certeza, a matéria aparece com o aviso **confira a área**.
 
-Ao colar do site, menus, botões ("Compartilhar", "WhatsApp"), imagens e seus créditos ("Spacca") e quadros "Leia também" ficam de fora. Para não depender de adivinhação, o texto pode começar com rótulos (todos opcionais): `Título:`, `Autor:`, `Link:`, `Data:` e `Área:`.
+Ao colar do site, sai o mesmo que na transcrição da captura, pela estrutura da página e não por palavra: menus, botões ("Compartilhar", "WhatsApp"), fotos com a legenda e o crédito delas, chamadas ("assine a newsletter"), quadros "Leia também", o rótulo da editoria e os links de navegação ("Mais recente / Próxima"). A linha "Fonte: Agência Brasil" no fim continua na matéria (só "Fonte: https://…" vira o link). Para não depender de adivinhação, o texto pode começar com rótulos (todos opcionais): `Título:`, `Autor:`, `Link:`, `Data:` e `Área:`.
 
 Os avisos da lista ajudam a conferir antes de enviar: **sem link**, **confira a área**, **matéria de outra data** e **texto curto** (quando parece ter vindo só um trecho da matéria).
 
@@ -260,6 +260,7 @@ extensao/            a extensão (Manifest V3)
   background.js      controla a captura (service worker)
   pagina.js          roda dentro da página: escolhe o que rolar, mede cabeçalhos/rodapés fixos e o recorte
   leitor.js          roda dentro da página: acha o corpo da matéria e devolve o texto exato em blocos
+  limpeza.js         tira o que é do site (fotos com legenda e crédito, chamadas, navegação): na captura e no colado
   transcricao.js     monta a matéria do e-mail a partir da leitura da página ou do OCR (funções puras)
   transcrever.js, ocr.js   na página de notícias: recebe as capturas e lê os prints com o Tesseract
   terceiros/         Readability (Mozilla) e Tesseract.js com o modelo de português, com as licenças

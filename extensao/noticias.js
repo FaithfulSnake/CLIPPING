@@ -1,10 +1,10 @@
 import {
   AREAS,
   assunto,
+  autorComFonte,
   contarConferir,
   contarPalavras,
   dataPredominante,
-  fonteDoLink,
   formatarData,
   interpretarMateria,
   linkSozinho,
@@ -15,6 +15,7 @@ import {
   normalizar,
   separarMaterias,
 } from './noticias-texto.js';
+import './limpeza.js';
 import { decodificarTexto, lerZip } from './unzip.js';
 import { criarZip } from './zip.js';
 
@@ -167,14 +168,18 @@ async function arquivosDoArrasto(dataTransfer) {
 
 // ---------------------------------------------------------------- colar
 
-// Blocos que não fazem parte do texto da matéria (menus, botões, imagens, "Leia também").
-const PULAR = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE', 'BUTTON', 'NAV', 'ASIDE', 'FIGURE', 'FIGCAPTION', 'IMG', 'PICTURE', 'SVG', 'VIDEO', 'AUDIO', 'IFRAME', 'FORM', 'INPUT', 'SELECT', 'TEXTAREA', 'HEAD']);
+// Blocos que não fazem parte do texto da matéria (menus, botões, imagens).
+const PULAR = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE', 'BUTTON', 'NAV', 'ASIDE', 'IMG', 'PICTURE', 'SVG', 'VIDEO', 'AUDIO', 'IFRAME', 'FORM', 'INPUT', 'SELECT', 'TEXTAREA', 'HEAD']);
 const PARAGRAFO = new Set(['P', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'LI', 'BLOCKQUOTE', 'PRE', 'TR', 'DT', 'DD']);
-const BLOCO = new Set([...PARAGRAFO, 'DIV', 'SECTION', 'ARTICLE', 'HEADER', 'FOOTER', 'MAIN', 'UL', 'OL', 'TABLE', 'TBODY', 'THEAD', 'DL', 'HR', 'ADDRESS', 'CENTER']);
+// (<address> fica na linha: "Por <address>Fulana</address> — De São Paulo")
+const BLOCO = new Set([...PARAGRAFO, 'DIV', 'SECTION', 'ARTICLE', 'HEADER', 'FOOTER', 'MAIN', 'UL', 'OL', 'TABLE', 'TBODY', 'THEAD', 'DL', 'HR', 'CENTER']);
 
-// HTML copiado do site → texto com um parágrafo por bloco (linha em branco entre eles).
-function textoDeHtml(html) {
+// HTML copiado do site → texto com um parágrafo por bloco (linha em branco
+// entre eles). Com limpar, sai o que é do site, como na leitura da página
+// (limpeza.js): fotos com legenda e crédito, chamadas, "Leia também"…
+function textoDeHtml(html, limpar = true) {
   const doc = new DOMParser().parseFromString(html, 'text/html');
+  if (limpar) globalThis.__clippingLimpeza.limparMateria(doc.body);
   const linhas = [];
   let atual = '';
   const quebrar = (paragrafo) => {
@@ -205,24 +210,27 @@ function textoDeHtml(html) {
   return linhas.join('\n');
 }
 
-// Prefere o HTML (separa melhor os parágrafos e tira imagens e menus), a não
-// ser que ele perca texto em relação à versão simples.
+// Prefere o HTML (separa melhor os parágrafos e tira imagens, menus e o que é
+// do site), a não ser que a conversão perca texto em relação à versão simples.
+// (A conferência é com o HTML sem a limpeza: o que a limpeza tira é do site.)
 function textoDoColado(texto, html) {
   if (!html) return texto;
-  let convertido = '';
+  let bruto = '';
+  let limpo = '';
   try {
-    convertido = textoDeHtml(html);
+    bruto = textoDeHtml(html, false);
+    limpo = textoDeHtml(html);
   } catch {
     return texto;
   }
   const tamanho = (t) => t.replace(/\s+/g, '').length;
-  return tamanho(convertido) >= tamanho(texto) * 0.6 ? convertido : texto;
+  if (tamanho(bruto) < tamanho(texto) * 0.6) return texto;
+  return tamanho(limpo) >= tamanho(bruto) * 0.3 ? limpo : bruto;
 }
 
 function aplicarLink(m, url) {
   m.link = url;
-  const fonte = fonteDoLink(url);
-  if (m.autor && fonte && !m.autor.includes('(')) m.autor = `${m.autor} (${fonte})`;
+  m.autor = autorComFonte(m.autor, url);
 }
 
 // Link pela aba aberta da matéria: a aba cujo título contém o título copiado.

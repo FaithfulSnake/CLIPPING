@@ -205,3 +205,13 @@ with zipfile.ZipFile(sys.argv[1], 'w', zipfile.ZIP_DEFLATED) as z:
     assert.equal(decodificarTexto(itens[0].dados), `Título: ICMS\n${'texto '.repeat(500)}`);
   }
 });
+
+test('"Fonte: Agência Brasil" no fim é da matéria; "Fonte: <endereço>" é o link', () => {
+  const corpo = 'A Receita Federal publicou a instrução normativa que regulamenta a retenção de 10% sobre os dividendos pagos a partir de janeiro.';
+  const m = interpretarMateria(`Receita regulamenta retenção sobre dividendos\n\n${corpo}\n\nFonte: Agência Brasil`);
+  assert.equal(m.texto, `${corpo}\n\nFonte: Agência Brasil`);
+  assert.equal(m.link, '');
+  const comLink = interpretarMateria(`Receita regulamenta retenção sobre dividendos\n\n${corpo}\n\nFonte: https://www.conjur.com.br/2026-out-28/receita/`);
+  assert.equal(comLink.texto, corpo);
+  assert.equal(comLink.link, 'https://www.conjur.com.br/2026-out-28/receita/');
+});

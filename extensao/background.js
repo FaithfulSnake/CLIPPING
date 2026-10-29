@@ -123,7 +123,7 @@ async function dimensoes(blob) {
 
 // Lê a matéria direto da página (leitor.js): o texto como o site publica.
 async function lerMateria(tabId, selecao) {
-  await chrome.scripting.executeScript({ target: { tabId }, files: ['terceiros/readability/Readability.js', 'leitor.js'] });
+  await chrome.scripting.executeScript({ target: { tabId }, files: ['terceiros/readability/Readability.js', 'limpeza.js', 'leitor.js'] });
   const config = {
     area: Boolean(selecao?.rolagemEscolhida),
     faixaX: selecao?.recorte ? { x: selecao.recorte.x, w: selecao.recorte.w } : null,

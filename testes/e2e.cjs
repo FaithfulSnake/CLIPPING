@@ -1087,8 +1087,40 @@ with zipfile.ZipFile(sys.argv[1], 'w') as z:
       if (process.env.SALVAR_PRINTS) await pagina.screenshot({ path: path.join(process.env.SALVAR_PRINTS, 'previa.png') });
       await pagina.click('#dialogo-fechar');
       assert.equal(await pagina.$eval('#dialogo', (d) => d.open), false);
+      // O que é colado passa pela mesma limpeza da captura: fotos com legenda e
+      // crédito, chamadas e navegação saem; as armadilhas de valor.html ficam.
+      await site.goto(`${base}/valor.html`);
+      await site.bringToFront();
+      await site.evaluate(() => {
+        const faixa = document.createRange();
+        faixa.setStartBefore(document.querySelector('h1'));
+        faixa.setEndAfter(document.querySelector('.mc-article-body'));
+        getSelection().removeAllRanges();
+        getSelection().addRange(faixa);
+      });
+      await site.keyboard.press('Control+C');
+      await pagina.bringToFront();
+      await pagina.focus('#zona-colar');
+      await pagina.keyboard.press('Control+V');
+      const doValor = () =>
+        pagina.$$eval('#lista > li', (lis) =>
+          lis
+            .map((li) => ({ titulo: li.querySelector('.campo.largo input').value, autor: li.querySelector('.linha input').value, data: li.querySelector('input[type=date]').value, link: li.querySelector('input[type=url]').value, texto: li.querySelector('textarea').value }))
+            .find((m) => m.titulo.startsWith('TRF-3')),
+        );
+      await pagina.waitForFunction(() => [...document.querySelectorAll('#lista > li .campo.largo input')].some((i) => i.value.startsWith('TRF-3')));
+      const colada = await doValor();
+      assert.deepEqual(
+        { ...colada, texto: undefined },
+        { titulo: 'TRF-3 afasta retenção de 10% de IR sobre dividendos', autor: 'Beatriz Lima e Arthur Prado', data: '2026-10-23', link: `${base}/valor.html`, texto: undefined },
+      );
+      assert.equal(
+        colada.texto,
+        TEXTO_VALOR.replace(/\*\*|_/g, '').replace(/\n(?=\d{4} \|)/g, '\n\n'),
+        'texto colado sem legenda, crédito, chamada nem navegação',
+      );
       assert.deepEqual(erros, []);
-      console.log('ok   notícias: colar do site (Ctrl+V), link pela aba, link colado, botão colar e pré-visualização');
+      console.log('ok   notícias: colar do site (Ctrl+V), link pela aba, link colado, botão colar e pré-visualização; colado sem legendas, chamadas e navegação');
       await site.close();
       await pagina.close();
     } catch (e) {
